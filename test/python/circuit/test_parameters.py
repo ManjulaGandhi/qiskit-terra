@@ -467,6 +467,43 @@ class TestParameters(QiskitTestCase):
         self.assertEqual(decomposed_qc2.parameters, set())
         self.assertEqual(decomposed_qc2, expected_qc2)
 
+    @data('none', 'copy_instruction', 'copy_circuit')
+    def test_copy_and_rebind(self, copy_method):
+        """??
+
+        Goal: Add instr to a circuit and rebind the values to different ones.
+        """
+        # ref: https://github.com/Qiskit/qiskit-terra/issues/2482
+        import copy
+        theta = Parameter('th')
+        qc = QuantumCircuit(1)
+        qc.rx(theta, 0)
+        instr = qc.to_instruction()
+
+        block1, block2 = QuantumCircuit(1), QuantumCircuit(1)
+        if copy_method == 'copy_instruction':
+            block1.append(copy.deepcopy(instr), [0])
+            block2.append(copy.deepcopy(instr), [0])
+        else:
+            block1.append(instr, [0])
+            block2.append(instr, [0])
+
+        phi1, phi2 = Parameter('ph1'), Parameter('ph2')
+        if copy_method == 'copy_circuit':
+            block1, block2 = block1.copy(), block2.copy()
+        block1._substitute_parameters({theta: phi1})
+        block2._substitute_parameters({theta: phi2})
+
+        self.assertEqual(block1.parameters, {phi1})
+        self.assertEqual(block2.parameters, {phi2})
+
+        basis_gates = ['u1', 'u2', 'u3', 'cx']
+        transpiled1 = transpile(block1, basis_gates=basis_gates)
+        transpiled2 = transpile(block2, basis_gates=basis_gates)
+
+        self.assertEqual(transpiled1.parameters, {phi1})
+        self.assertEqual(transpiled2.parameters, {phi2})
+
     @data('gate', 'instruction')
     def test_decompose_propagates_deeply_bound_parameters(self, target_type):
         """Verify bind-before-decompose preserves deeply bound values."""
