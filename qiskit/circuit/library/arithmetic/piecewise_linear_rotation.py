@@ -14,16 +14,15 @@
 
 """Piecewise-linearly-controlled rotation."""
 
+from typing import List
 import numpy as np
 
-from qiskit.aqua.utils import CircuitFactory
-from qiskit.aqua.circuits.fixed_value_comparator import FixedValueComparator as Comparator
-from qiskit.aqua.circuits.linear_rotation import LinearRotation as LinR
-
-# pylint: disable=invalid-name
+from qiskit.circuit import QuantumCircuit, QuantumRegister
+from qiskit.circuit.library.arithmetic import (LinearRotation as LinR,
+                                               FixedValueComparator as Comparator)
 
 
-class PiecewiseLinearRotation(CircuitFactory):
+class PiecewiseLinearRotation(QuantumCircuit):
     """
     Piecewise-linearly-controlled rotation.
     For a piecewise linear (not necessarily continuous) function f(x).
@@ -39,29 +38,17 @@ class PiecewiseLinearRotation(CircuitFactory):
     where we implicitly assume x_{J+1} = 2^n.
     """
 
-    def __init__(self, breakpoints, slopes, offsets, num_state_qubits,
-                 basis='Y', i_state=None, i_target=None):
-        """
-        Constructor.
-
-        Construct piecewise-linearly-controlled Y-rotation.
+    def __init__(self, num_state_qubits: int, breakpoints: List[int], slopes: List[float],
+                 offsets: List[float], basis: str = 'Y') -> None:
+        """Construct piecewise-linearly-controlled Pauli rotations.
 
         Args:
-            breakpoints (Union(list, numpy.ndarray)): breakpoints to define
-                                                        piecewise-linear function
-            slopes (Union(list, numpy.ndarray)): slopes for different segments of
-                                                        piecewise-linear function
-            offsets (Union(list, numpy.ndarray)): offsets for different segments of
-                                                        piecewise-linear function
-            num_state_qubits (int): number of qubits representing the state
-            basis (Optional(str)): type of Pauli rotation ('X', 'Y', 'Z')
-            i_state (Optional(Union(list, numpy.ndarray))): indices of qubits representing
-                            the state, set to range(num_state_qubits) if None
-            i_target (Optional(int)): index of target qubit, set to num_state_qubits if None
+            num_state_qubits: The number of qubits representing the state.
+            breakpoints: The breakpoints to define the piecewise-linear function.
+            slopes: The slopes for different segments of the piecewise-linear function.
+            offsets: The offsets for different segments of the piecewise-linear function.
+            basis: The type of Pauli rotation ('X', 'Y', 'Z').
         """
-
-        super().__init__(num_state_qubits + 1)
-
         # store parameters
         self.num_state_qubits = num_state_qubits
         self.breakpoints = breakpoints
@@ -87,18 +74,11 @@ class PiecewiseLinearRotation(CircuitFactory):
         # check whether 0 is contained in breakpoints
         self.contains_zero_breakpoint = np.isclose(0, self.breakpoints[0])
 
-        # get indices
-        self.i_state = None
-        if i_state is not None:
-            self.i_state = i_state
-        else:
-            self.i_state = range(num_state_qubits)
+        qr_state = QuantumRegister(num_state_qubits)
+        qr_target = QuantumRegister(1)
+        qr_ancilla = QuantumRegister(self.num_ancillas)
 
-        self.i_target = None
-        if i_target is not None:
-            self.i_target = i_target
-        else:
-            self.i_target = num_state_qubits
+        super().__init__(qr_state, qr_target, qr_ancilla)
 
     def evaluate(self, x):
         """
@@ -116,64 +96,44 @@ class PiecewiseLinearRotation(CircuitFactory):
 
         return y
 
-    def required_ancillas(self):
+    @property
+    def num_ancillas(self) -> int:
+        """The number of ancilla qubits.
 
+        Returns:
+            The number of ancilla qubits in the circuit.
+        """
         num_ancillas = self.num_state_qubits - 1 + len(self.breakpoints)
         if self.contains_zero_breakpoint:
             num_ancillas -= 1
         return num_ancillas
 
-    def build(self, qc, q, q_ancillas=None, params=None):
-
-        # get parameters
-        i_state = self.i_state
-        i_target = self.i_target
-
+    def _build(self, qr_state, qr_target, qr_ancilla):
         # apply comparators and controlled linear rotations
         for i, bp in enumerate(self.breakpoints):
-
             if i == 0 and self.contains_zero_breakpoint:
-
                 # apply rotation
-                lin_r = LinR(self.mapped_slopes[i], self.mapped_offsets[i],
-                             self.num_state_qubits, basis=self.basis,
-                             i_state=i_state, i_target=i_target)
-                lin_r.build(qc, q)
-
-            elif self.contains_zero_breakpoint:
-
-                # apply comparator
-                comp = Comparator(self.num_state_qubits, bp)
-                q_ = [q[i] for i in range(self.num_state_qubits)]  # map register to list
-                q_ = q_ + [q_ancillas[i - 1]]  # add ancilla as compare qubit
-                # take remaining ancillas as ancilla register (list)
-                q_ancillas_ = [q_ancillas[j] for j in range(i, len(q_ancillas))]
-                comp.build(qc, q_, q_ancillas_)
-
-                # apply controlled rotation
-                lin_r = LinR(self.mapped_slopes[i], self.mapped_offsets[i],
-                             self.num_state_qubits, basis=self.basis,
-                             i_state=i_state, i_target=i_target)
-                lin_r.build_controlled(qc, q, q_ancillas[i - 1], use_basis_gates=False)
-
-                # uncompute comparator
-                comp.build_inverse(qc, q_, q_ancillas_)
+                lin_r = LinR(self.num_state_qubits, self.mapped_slopes[i], self.mapped_offsets[i],
+                             basis=self.basis).to_instruction()
+                self.append(lin_r, qr_state + qr_target)
 
             else:
+                if self.contains_zero_breakpoint:
+                    i_compare = i - 1
+                else:
+                    i_compare = i
 
                 # apply comparator
-                comp = Comparator(self.num_state_qubits, bp)
-                q_ = [q[i] for i in range(self.num_state_qubits)]  # map register to list
-                q_ = q_ + [q_ancillas[i]]  # add ancilla as compare qubit
-                # take remaining ancillas as ancilla register (list)
-                q_ancillas_ = [q_ancillas[j] for j in range(i + 1, len(q_ancillas))]
-                comp.build(qc, q_, q_ancillas_)
+                comp = Comparator(self.num_state_qubits, bp).to_instruction()
+                qr = qr_state + [qr_ancilla[i_compare]]  # add ancilla as compare qubit
+                qr_remaining_ancilla = qr_ancilla[i_compare:]  # take remaining ancillas
+
+                self.append(comp, qr + qr_remaining_ancilla)
 
                 # apply controlled rotation
-                lin_r = LinR(self.mapped_slopes[i],
-                             self.mapped_offsets[i], self.num_state_qubits, basis=self.basis,
-                             i_state=i_state, i_target=i_target)
-                lin_r.build_controlled(qc, q, q_ancillas[i], use_basis_gates=False)
+                lin_r = LinR(self.num_state_qubits, self.mapped_slopes[i], self.mapped_offsets[i],
+                             basis=self.basis).to_instruction()
+                self.append(lin_r.control(), qr_state + qr_target + [qr_ancilla[i - 1]])
 
                 # uncompute comparator
-                comp.build_inverse(qc, q_, q_ancillas_)
+                self.append(comp.inverse(), qr + qr_remaining_ancilla)
