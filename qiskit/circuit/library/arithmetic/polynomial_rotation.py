@@ -12,62 +12,82 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-"""
-Polynomially controlled Pauli-rotations
-"""
+"""Polynomially controlled Pauli-rotations."""
+
+from typing import List
 
 from itertools import product
 from sympy.ntheory.multinomial import multinomial_coefficients
 import numpy as np
 
-from qiskit.aqua.utils import CircuitFactory
-
-# pylint: disable=invalid-name
+from qiskit.circuit import QuantumCircuit, QuantumRegister
 
 
-class PolynomialRotation(CircuitFactory):
+class PolynomialRotation(QuantumCircuit):
     r"""
     Polynomial rotation.
 
-    | For a polynomial p(x), a basis state \|i> and a target qubit \|0> this operator acts as:
-    |    \|i>\|0> --> \|i>( cos(p(i))\|0> + sin(p(i))\|1> )
+    For a polynomial :math`p(x)`, a basis state :math:`|i\rangle` and a target qubit
+    :math:`|0\rangle` this operator acts as:
 
-    | Let n be the number of qubits representing the state, d the degree of p(x) and q_i the qubits,
-    | where q_0 is the least significant qubit. Then for
-    |     x = sum_{i=0}^{n-1} 2^{i}*q_i,
-    | we can write
-    |     p(x) = sum_{j=0}^{j=d} px[j]*(q_0 + 2*q_1 + ... + 2^{n-1}*q_n-1)^{j}.
+    .. math::
 
-    The expression above is used to obtain the list of controls and rotation angles for the circuit.
+        |i\rangle |0\rangle \mapsto \cos(p(i)) |i\rangle |0\rangle + \sin(p(i)) |i\rangle |1\rangle
+
+    Let n be the number of qubits representing the state, d the degree of p(x) and q_i the qubits,
+    where q_0 is the least significant qubit. Then for
+
+    .. math::
+
+        x = \sum_{i=0}^{n-1} 2^i q_i,
+
+    we can write
+
+    .. math::
+
+        p(x) = \sum_{j=0}^{j=d} c_j x_j
+
+    where :math:`c` are the input coefficients, ``coeffs``.
     """
 
-    def __init__(self, px, num_state_qubits, basis='Y'):
-        """
-        Prepare an approximation to a state with amplitudes specified by a polynomial.
+    def __init__(self, num_state_qubits: int, coeffs: List[float], basis: str = 'Y',
+                 reverse: bool = False):
+        """Prepare an approximation to a state with amplitudes specified by a polynomial.
 
         Args:
-            px (list): coefficients of the polynomial, px[i] is the coefficient of x^i
-            num_state_qubits (int): number of qubits representing the state
-            basis (str): type of Pauli rotation ('X', 'Y', 'Z')
+            num_state_qubits: The number of qubits representing the state.
+            coeffs: The coefficients of the polynomial. ``coeffs[i]`` is the coefficient of the
+                i-th power of x.
+            basis: The type of Pauli rotation ('X', 'Y', 'Z').
+            reverse: If True, apply the polynomial with the reversed list of qubits
+                (i.e. q_n as q_0, q_n-1 as q_1, etc).
 
         Raises:
             ValueError: invalid input
         """
-        super().__init__(num_state_qubits + 1)
-
-        # Store parameters
+        # store parameters
         self.num_state_qubits = num_state_qubits
-        self.px = px
-        self.degree = len(px) - 1
-        self.basis = basis
+        self.coeffs = coeffs
+        self.degree = len(coeffs) - 1
+        self.basis = basis.lower()
+        self.reverse = reverse
 
-        if self.basis not in ['X', 'Y', 'Z']:
-            raise ValueError('Basis must be X, Y or Z')
+        if self.basis not in ['x', 'y', 'z']:
+            raise ValueError('The provided basis must be X, Y or Z, not {}'.format(basis))
 
-    def required_ancillas(self):
+        qr_state = QuantumRegister(num_state_qubits)
+        qr_target = QuantumRegister(1)
+        qr_ancilla = QuantumRegister(self.num_ancillas)  # based on self.degree
+        super().__init__(qr_state, qr_target, qr_ancilla)
+
+        self._build(qr_state, qr_target, qr_ancilla)
+
+    @property
+    def num_ancillas(self):
         return max(1, self.degree - 1)
 
-    def required_ancillas_controlled(self):
+    @property
+    def num_ancillas_controlled(self):
         return max(1, self.degree)
 
     def _get_controls(self):
@@ -99,7 +119,7 @@ class PolynomialRotation(CircuitFactory):
         Compute the coefficient of each monomial.
         This will be the argument for the controlled y-rotation.
         """
-        for j in range(1, len(self.px)):
+        for j in range(1, len(self.coeffs)):
             # List of multinomial coefficients
             mlist = multinomial_coefficients(self.num_state_qubits, j)
             # Add angles
@@ -115,56 +135,44 @@ class PolynomialRotation(CircuitFactory):
                         temp_t.append(0)
                 temp_t = tuple(temp_t)
                 # Add angle
-                cdict[temp_t] += self.px[j] * mlist[m] * powers
+                cdict[temp_t] += self.coeffs[j] * mlist[m] * powers
         return cdict
 
-    # pylint: disable=arguments-differ
-    def build(self, qc, q, q_target, q_ancillas=None, reverse=0):
-        r"""
-        Args:
-            qc (QuantumCircuit): quantum circuit
-            q (list): list of qubits (has to be same length as self.num_state_qubits)
-            q_target (Qubit): qubit to be rotated. The algorithm is successful when
-                this qubit is in the \|1> state
-            q_ancillas (list): list of ancilla qubits (or None if none needed)
-            reverse (int): if 1, apply with reversed list of qubits
-                           (i.e. q_n as q_0, q_n-1 as q_1, etc).
-        """
+    def _build(self, qr_state, qr_target, qr_ancilla):
+        # dictionary of controls for the rotation gates as a tuple and their respective angles
+        cdict = self._get_thetas(self._get_controls())
 
-        # Dictionary of controls for the rotation gates as a tuple and their respective angles
-        cdict = self._get_controls()
-        cdict = self._get_thetas(cdict)
-
-        if self.basis == 'X':
-            qc.rx(2 * self.px[0], q_target)
-        elif self.basis == 'Y':
-            qc.ry(2 * self.px[0], q_target)
-        elif self.basis == 'Z':
-            qc.rz(2 * self.px[0], q_target)
+        if self.basis == 'x':
+            self.rx(2 * self.coeffs[0], qr_target)
+        elif self.basis == 'y':
+            self.ry(2 * self.coeffs[0], qr_target)
+        else:
+            self.rz(2 * self.coeffs[0], qr_target)
 
         for c in cdict:
-            q_controls = []
-            if reverse == 1:
-                for i in range(0, len(c)):  # pylint: disable=consider-using-enumerate
+            qr_control = []
+            if self.reverse:
+                for i, _ in enumerate(c):
                     if c[i] > 0:
-                        q_controls.append(q[q.size - i - 1])
+                        qr_control.append(qr_state[qr_state.size - i - 1])
             else:
-                for i in range(0, len(c)):  # pylint: disable=consider-using-enumerate
+                for i, _ in enumerate(c):
                     if c[i] > 0:
-                        q_controls.append(q[i])
-            # Apply controlled y-rotation
-            if len(q_controls) > 1:
-                if self.basis == 'X':
-                    qc.mcrx(2 * cdict[c], q_controls, q_target, q_ancillas)
-                elif self.basis == 'Y':
-                    qc.mcry(2 * cdict[c], q_controls, q_target, q_ancillas)
-                elif self.basis == 'Z':
-                    qc.mcrz(2 * cdict[c], q_controls, q_target, q_ancillas)
+                        qr_control.append(qr_state[i])
 
-            elif len(q_controls) == 1:
-                if self.basis == 'X':
-                    qc.u3(2 * cdict[c], -np.pi / 2, np.pi / 2, q_controls[0], q_target)
-                elif self.basis == 'Y':
-                    qc.cry(2 * cdict[c], q_controls[0], q_target)
-                elif self.basis == 'Z':
-                    qc.crz(2 * cdict[c], q_controls[0], q_target)
+            # apply controlled rotations
+            if len(qr_control) > 1:
+                if self.basis == 'x':
+                    self.mcrx(2 * cdict[c], qr_control, qr_target[0], qr_ancilla)
+                elif self.basis == 'y':
+                    self.mcry(2 * cdict[c], qr_control, qr_target[0], qr_ancilla)
+                else:
+                    self.mcrz(2 * cdict[c], qr_control, qr_target[0], qr_ancilla)
+
+            elif len(qr_control) == 1:
+                if self.basis == 'x':
+                    self.u3(2 * cdict[c], -np.pi / 2, np.pi / 2, qr_control[0], qr_target)
+                elif self.basis == 'y':
+                    self.cry(2 * cdict[c], qr_control[0], qr_target[0])
+                else:
+                    self.crz(2 * cdict[c], qr_control[0], qr_target[0])

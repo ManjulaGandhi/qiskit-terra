@@ -16,76 +16,77 @@
 
 import numpy as np
 
-from qiskit.aqua.utils import CircuitFactory
+from qiskit.circuit import QuantumCircuit, QuantumRegister
 
 
-class LinearRotation(CircuitFactory):
-    r"""
-    Linearly-controlled X, Y or Z rotation.
-    For a register of state qubits \|x> and a target qubit \|0> this operator acts as:
+class LinearRotation(QuantumCircuit):
+    r"""Linearly-controlled X, Y or Z rotation.
 
-        \|x>\|0> --> \|x>( cos(slope * x + offset)\|0> + sin(slope * x + offset)\|1> )
+    For a register of state qubits |x>, a target qubit |0> and the basis 'Y' this
+    circuit acts as:
+
+    q_0:     |0>─────────────────────────■───────── ... ──────────────────────
+                                         │
+                                         .
+                                         │
+    q_(n-1): |0>─────────────────────────┼───────── ... ───────────■──────────
+                 ┌────────────┐  ┌───────┴───────┐       ┌─────────┴─────────┐
+    q_n:     |0>─┤ RY(offset) ├──┤ RY(2^0 slope) ├  ...  ┤ RY(2^(n-1) slope) ├
+                 └────────────┘  └───────────────┘       └───────────────────┘
+
+    This can for example be used to approximate linear functions, with :math:`a/2` = slope
+    and :math:`b/2` = offset and the basis 'Y':
+
+    .. math::
+
+        |x\rangle |0\rangle \mapsto \cos(ax + b)|x\rangle|0\rangle + \sin(ax + b)|x\rangle |1\rangle
+
+    Since for small arguments :math:`\sin(x) \approx x` this operator can be used to approximate
+    linear functions.
 
     """
 
-    def __init__(self, slope, offset, num_state_qubits, basis='Y', i_state=None, i_target=None):
-        """
+    def __init__(self, num_state_qubits: int, slope: float, offset: float, basis: str = 'Y'
+                 ) -> None:
+        r"""
         Args:
-            slope (float): slope of the controlled rotation
-            offset (float): offset of the controlled rotation
-            num_state_qubits (int): number of qubits representing the state
-            basis (str): type of Pauli rotation ('X', 'Y', 'Z')
-            i_state (Optional(Union(list, numpy.ndarray))): indices of the state qubits
-                (least significant to most significant)
-            i_target (Optional(int)): index of target qubit
+            num_state_qubits (int): The number of qubits representing the state :math:`|x\rangle`.
+            slope (float): The slope of the controlled rotation.
+            offset (float): The offset of the controlled rotation.
+            basis (str): The type of Pauli rotation ('X', 'Y', 'Z').
 
         Raises:
             ValueError: invalid input
         """
-
-        super().__init__(num_state_qubits + 1)
+        qr_state = QuantumRegister(num_state_qubits, name='state')
+        qr_target = QuantumRegister(1, name='target')
+        super().__init__(qr_state, qr_target)
 
         # store parameters
         self.num_control_qubits = num_state_qubits
         self.slope = slope
         self.offset = offset
-        self.basis = basis
+        self.basis = basis.lower()
 
-        if self.basis not in ['X', 'Y', 'Z']:
-            raise ValueError('Basis must be X, Y or Z')
+        if self.basis not in ['x', 'y', 'z']:
+            raise ValueError('The provided basis must be X, Y or Z, not {}'.format(basis))
 
-        self.i_state = None
-        if i_state is not None:
-            self.i_state = i_state
-        else:
-            self.i_state = range(num_state_qubits)
+        self._build(qr_state, qr_target)
 
-        self.i_target = None
-        if i_target is not None:
-            self.i_target = i_target
-        else:
-            self.i_target = num_state_qubits
-
-    def build(self, qc, q, q_ancillas=None, params=None):
-
-        # get indices
-        i_state = self.i_state
-        i_target = self.i_target
-
-        # apply linear rotation
+    def _build(self, qr_state, qr_target):
         if not np.isclose(self.offset / 4 / np.pi % 1, 0):
-            if self.basis == 'X':
-                qc.rx(self.offset, q[i_target])
-            elif self.basis == 'Y':
-                qc.ry(self.offset, q[i_target])
-            elif self.basis == 'Z':
-                qc.rz(self.offset, q[i_target])
-        for i, j in enumerate(i_state):
+            if self.basis == 'x':
+                self.rx(self.offset, qr_target)
+            elif self.basis == 'y':
+                self.ry(self.offset, qr_target)
+            else:  # 'Z':
+                self.rz(self.offset, qr_target)
+        for i, q_i in enumerate(qr_state):
             theta = self.slope * pow(2, i)
             if not np.isclose(theta / 4 / np.pi % 1, 0):
-                if self.basis == 'X':
-                    qc.crx(self.slope * pow(2, i), q[j], q[i_target])
-                elif self.basis == 'Y':
-                    qc.cry(self.slope * pow(2, i), q[j], q[i_target])
-                elif self.basis == 'Z':
-                    qc.crz(self.slope * pow(2, i), q[j], q[i_target])
+                if self.basis == 'x':
+                    self.crx(self.slope * pow(2, i), q_i, qr_target)
+                elif self.basis == 'y':
+                    self.cry(self.slope * pow(2, i), q_i, qr_target)
+                else:  # 'Z'
+                    self.crz(self.slope * pow(2, i), q_i, qr_target)
