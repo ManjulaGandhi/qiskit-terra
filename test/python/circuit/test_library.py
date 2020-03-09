@@ -15,14 +15,15 @@
 """Test library of quantum circuits."""
 
 import numpy as np
-from ddt import ddt, data, unpack
+from ddt import ddt, data, idata, unpack
 
 from qiskit.test.base import QiskitTestCase
 from qiskit import BasicAer, execute
-from qiskit.circuit import QuantumCircuit
+from qiskit.circuit import QuantumCircuit, QuantumRegister
 from qiskit.circuit.exceptions import CircuitError
 from qiskit.circuit.library import Permutation, XOR, InnerProduct
-from qiskit.circuit.library.arithmetic import LinearRotation, PolynomialRotation
+from qiskit.circuit.library.arithmetic import (LinearRotation, PolynomialRotation,
+                                               FixedValueComparator)
 
 
 class TestBooleanLogicLibrary(QiskitTestCase):
@@ -120,3 +121,46 @@ class TestArithmeticCircuits(QiskitTestCase):
             with self.subTest(x=x, last_qubit=last_qubit):
                 self.assertAlmostEqual(amplitude.real, expected)
                 self.assertAlmostEqual(amplitude.imag, 0)
+
+
+@ddt
+class TestFixedValueComparator(QiskitTestCase):
+    """ Text Fixed Value Comparator """
+    @idata([
+        # n, value, geq
+        [1, 0, True],
+        [1, 1, True],
+        [2, -1, True],
+        [2, 0, True],
+        [2, 1, True],
+        [2, 2, True],
+        [2, 3, True],
+        [2, 4, True],
+        [3, 5, True],
+        [4, 6, False]
+    ])
+    @unpack
+    def test_fixed_value_comparator(self, num_state_qubits, value, geq):
+        """Test the fixed value comparator circuit."""
+        # build the circuit with the comparator
+        comp = FixedValueComparator(num_state_qubits, value, geq).to_instruction()
+        qc = QuantumCircuit(comp.num_qubits)  # initialize circuit
+        qc.h(list(range(num_state_qubits)))  # set equal superposition state
+        qc.append(comp, list(range(qc.n_qubits)))  # add comparator
+
+        # run simulation
+        backend = BasicAer.get_backend('statevector_simulator')
+        statevector = execute(qc, backend).result().get_statevector()
+
+        for i, amplitude in enumerate(statevector):
+            prob = np.abs(amplitude)**2
+            if prob > 1e-6:
+                # equal superposition
+                self.assertEqual(True, np.isclose(1.0, prob * 2.0**num_state_qubits))
+                b_value = '{0:b}'.format(i).rjust(qc.width(), '0')
+                x = int(b_value[(-num_state_qubits):], 2)
+                comp_result = int(b_value[-num_state_qubits-1], 2)
+                if geq:
+                    self.assertEqual(x >= value, comp_result == 1)
+                else:
+                    self.assertEqual(x < value, comp_result == 1)
