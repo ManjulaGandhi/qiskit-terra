@@ -51,7 +51,7 @@ class PolynomialRotation(QuantumCircuit):
     """
 
     def __init__(self, num_state_qubits: int, coeffs: List[float], basis: str = 'Y',
-                 reverse: bool = False):
+                 reverse: bool = False) -> None:
         """Prepare an approximation to a state with amplitudes specified by a polynomial.
 
         Args:
@@ -83,7 +83,12 @@ class PolynomialRotation(QuantumCircuit):
         self._build(qr_state, qr_target, qr_ancilla)
 
     @property
-    def num_ancillas(self):
+    def num_ancillas(self) -> int:
+        """The number of ancilla qubits in this circuit.
+
+        Returns:
+            The number of ancilla qubits.
+        """
         return max(1, self.degree - 1)
 
     @property

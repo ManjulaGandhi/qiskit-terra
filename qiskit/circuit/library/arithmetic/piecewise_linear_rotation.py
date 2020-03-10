@@ -110,12 +110,12 @@ class PiecewiseLinearRotation(QuantumCircuit):
 
     def _build(self, qr_state, qr_target, qr_ancilla):
         # apply comparators and controlled linear rotations
-        for i, bp in enumerate(self.breakpoints):
+        for i, point in enumerate(self.breakpoints):
             if i == 0 and self.contains_zero_breakpoint:
                 # apply rotation
                 lin_r = LinR(self.num_state_qubits, self.mapped_slopes[i], self.mapped_offsets[i],
                              basis=self.basis).to_instruction()
-                self.append(lin_r, qr_state + qr_target)
+                self.append(lin_r, qr_state[:] + qr_target[:])
 
             else:
                 if self.contains_zero_breakpoint:
@@ -124,16 +124,16 @@ class PiecewiseLinearRotation(QuantumCircuit):
                     i_compare = i
 
                 # apply comparator
-                comp = Comparator(self.num_state_qubits, bp).to_instruction()
-                qr = qr_state + [qr_ancilla[i_compare]]  # add ancilla as compare qubit
+                comp = Comparator(self.num_state_qubits, point).to_instruction()
+                qr = qr_state[:] + [qr_ancilla[i_compare]]  # add ancilla as compare qubit
                 qr_remaining_ancilla = qr_ancilla[i_compare:]  # take remaining ancillas
 
-                self.append(comp, qr + qr_remaining_ancilla)
+                self.append(comp, qr[:] + qr_remaining_ancilla[:])
 
                 # apply controlled rotation
                 lin_r = LinR(self.num_state_qubits, self.mapped_slopes[i], self.mapped_offsets[i],
                              basis=self.basis).to_instruction()
-                self.append(lin_r.control(), qr_state + qr_target + [qr_ancilla[i - 1]])
+                self.append(lin_r.control(), qr_state[:] + qr_target[:] + [qr_ancilla[i - 1]])
 
                 # uncompute comparator
-                self.append(comp.inverse(), qr + qr_remaining_ancilla)
+                self.append(comp.inverse(), qr[:] + qr_remaining_ancilla[:])

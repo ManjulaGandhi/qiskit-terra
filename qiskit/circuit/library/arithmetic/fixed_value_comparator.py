@@ -14,7 +14,7 @@
 
 """Fixed Value Comparator."""
 
-from typing import List
+from typing import List, Optional
 import numpy as np
 
 from qiskit.circuit import QuantumCircuit, QuantumRegister
@@ -35,7 +35,13 @@ class FixedValueComparator(QuantumCircuit):
     condition is True otherwise it is False.
     """
 
-    def __init__(self, num_state_qubits: int, value: int, geq: bool = True) -> None:
+    def __init__(self,
+                 value: int,
+                 num_state_qubits: Optional[int] = None,
+                 qr_state: Optional[QuantumRegister] = None,
+                 qr_target: Optional[QuantumRegister] = None,
+                 qr_ancilla: Optional[QuantumRegister] = None,
+                 geq: bool = True) -> None:
         """
 
         Args:
@@ -43,20 +49,32 @@ class FixedValueComparator(QuantumCircuit):
             value (int): fixed value to compare with
             geq (Optional(bool)): evaluate ">=" condition of "<" condition
         """
-        # set up registers
-        qr_state = QuantumRegister(num_state_qubits, 'state')
-        qr_result = QuantumRegister(1, 'result')
-        super().__init__(qr_state, qr_result)
-        if num_state_qubits > 1:
-            qr_ancilla = QuantumRegister(num_state_qubits - 1, 'ancilla')
-            self.add_register(qr_ancilla)
-        else:
-            qr_ancilla = None
-
         # store internals
         self._num_state_qubits = num_state_qubits
         self._value = value
         self._geq = geq
+
+        # set up state and target registers
+        if num_state_qubits is not None:
+            if qr_state and qr_result:
+                raise TypeError('Provide either the number of state qubits or the registers, '
+                                'but not both.')
+            qr_state = QuantumRegister(num_state_qubits, 'state')
+            qr_result = QuantumRegister(1, 'result')
+            self._num_state_qubits = num_state_qubits
+
+        super().__init__(qr_state, qr_result)
+
+        # add ancilla register
+        if self.num_ancilla_qubits > 0:
+            if qr_ancilla:
+                if len(qr_ancilla) < self.num_ancilla_qubits:
+                    raise ValueError('Insufficient number of ancilla qubits, need at least '
+                                     '{}'.format(self.num_ancilla_qubits))
+            else:
+                qr_ancilla = QuantumRegister(self.num_ancilla_qubits, 'ancilla')
+
+            self.add_register(qr_ancilla)
 
         # build circuit
         self._build(qr_state, qr_result, qr_ancilla)
@@ -112,7 +130,6 @@ class FixedValueComparator(QuantumCircuit):
             qr_result: The register containing the single qubit, which will contain the result.
             qr_ancilla: The register containing the ancilla qubits.
         """
-
         if self.value <= 0:  # condition always satisfied for non-positive values
             if self._geq:  # otherwise the condition is never satisfied
                 self.x(qr_result)

@@ -17,65 +17,45 @@ Adds q^T * w to separate register for non-negative integer weights w
 """
 
 import logging
+from typing import List
 
 import numpy as np
 
-from qiskit.aqua import AquaError
-from qiskit.aqua.utils.circuit_factory import CircuitFactory
+from qiskit.circuit import QuantumCircuit, QuantumRegister
 
 logger = logging.getLogger(__name__)
 
 
-class WeightedSumOperator(CircuitFactory):
+class WeightedSumOperator(QuantumCircuit):
     """
     Adds q^T * w to separate register for non-negative integer weights w
     """
 
-    def __init__(self, num_state_qubits, weights, i_state=None, i_sum=None):
-        """
-        Constructor.
-
-        Computes the weighted sum controlled by state qubits
+    def __init__(self, num_state_qubits: int, weights: List[int]) -> None:
+        """Computes the weighted sum controlled by state qubits.
 
         Args:
-            num_state_qubits (int): number of state qubits
-            weights (Union(list, numpy.ndarray)): weights per state qubits
-            i_state (Optional(Union(list, numpy.ndarray))): indices of state qubits,
-                                    set to range(num_state_qubits) if None
-            i_sum (Optional(int)): indices of target qubits (that represent the resulting sum),
-                set to range(num_state_qubits, num_state_qubits + req_num_sum_qubits) if None
-        Raises:
-            AquaError: invalid input
+            num_state_qubits: The number of state qubits.
+            weights: The weights per state qubits.
         """
 
         self._weights = weights
 
         # check weights
-        for i, w in enumerate(weights):
-            if not np.isclose(w, np.round(w)):
+        for i, weight in enumerate(weights):
+            if not np.isclose(weight, np.round(weight)):
                 logger.warning('Non-integer weights are rounded to '
-                               'the nearest integer! (%s, %s).', i, w)
+                               'the nearest integer! (%s, %s).', i, weight)
 
         self._num_state_qubits = num_state_qubits
-        self._num_sum_qubits = self.get_required_sum_qubits(weights)
+        self._num_sum_qubits = WeightedSumOperator.get_required_sum_qubits(weights)
         self._num_carry_qubits = self.num_sum_qubits - 1
 
-        num_target_qubits = num_state_qubits + self.num_sum_qubits
-        super().__init__(num_target_qubits)
+        qr_state = QuantumRegister(self._num_state_qubits)
+        qr_sum = QuantumRegister(self._num_sum_qubits)
+        qr_ancilla = QuantumRegister(self.num_ancillas)
 
-        if i_state is None:
-            self.i_state = list(range(num_state_qubits))
-        else:
-            self.i_state = i_state
-        if i_sum is None:
-            self.i_sum = list(range(max(self.i_state)+1, max(self.i_state)+self.num_sum_qubits+1))
-        else:
-            if len(i_sum) == self.get_required_sum_qubits(weights):
-                self.i_sum = i_sum
-            else:
-                raise AquaError('Invalid number of sum qubits {}! Required {}'.format(
-                    len(i_sum), self.get_required_sum_qubits(weights)
-                ))
+        super().__init__(qr_state, qr_sum, qr_ancilla)
 
     @staticmethod
     def get_required_sum_qubits(weights):
@@ -102,7 +82,8 @@ class WeightedSumOperator(CircuitFactory):
         """ returns num carry qubits """
         return self._num_carry_qubits
 
-    def required_ancillas(self):
+    @property
+    def num_ancillas(self):
         """ required ancillas """
         if self.num_sum_qubits > 2:
             # includes one ancilla qubit for 3-controlled not gates
@@ -115,114 +96,93 @@ class WeightedSumOperator(CircuitFactory):
         """ returns required ancillas controlled """
         return self.required_ancillas()
 
-    def build(self, qc, q, q_ancillas=None, params=None):
-
-        # get indices for state and target qubits
-        i_state = self.i_state
-        i_sum = self.i_sum
-
+    def _build(self, qr_state, qr_sum, qr_ancilla):
         # set indices for sum and carry qubits (from ancilla register)
-        i_carry = range(self.num_carry_qubits)
-        i_control = self.num_carry_qubits
+        qr_carry = qr_ancilla[:self.num_carry_qubits]
+        q_control = qr_ancilla[self.num_carry_qubits]
 
         # loop over state qubits and corresponding weights
-        for i, w in enumerate(self.weights):
-
+        for i, weight in enumerate(self.weights):
             # only act if non-trivial weight
-            if w > 0:
+            if weight == 0:
+                continue
 
-                # get state control qubit
-                q_state = q[i_state[i]]
+            # get state control qubit
+            q_state = qr_state[i]
 
-                # get bit representation of current weight
-                w_bits = "{0:b}".format(int(w)).rjust(self.num_sum_qubits, '0')[::-1]
+            # get bit representation of current weight
+            weight_binary = '{0:b}'.format(int(weight)).rjust(self.num_sum_qubits, '0')[::-1]
 
-                # loop over bits of current weight and add them to sum and carry registers
-                for j, b in enumerate(w_bits):
-                    if b == '1':
-                        if self.num_sum_qubits == 1:
-                            qc.cx(q_state, q[i_sum[j]])
-                        elif j == 0:
-                            # compute (q_sum[0] + 1) into (q_sum[0], q_carry[0])
-                            # - controlled by q_state[i]
-                            qc.ccx(q_state, q[i_sum[j]], q_ancillas[i_carry[j]])
-                            qc.cx(q_state, q[i_sum[j]])
-                        elif j == self.num_sum_qubits-1:
-                            # compute (q_sum[j] + q_carry[j-1] + 1) into (q_sum[j])
-                            # - controlled by q_state[i] / last qubit,
-                            # no carry needed by construction
-                            qc.cx(q_state, q[i_sum[j]])
-                            qc.ccx(q_state, q_ancillas[i_carry[j - 1]], q[i_sum[j]])
-                        else:
-                            # compute (q_sum[j] + q_carry[j-1] + 1) into (q_sum[j], q_carry[j])
-                            # - controlled by q_state[i]
-                            qc.x(q[i_sum[j]])
-                            qc.x(q_ancillas[i_carry[j-1]])
-                            qc.mct(
-                                [q_state, q[i_sum[j]], q_ancillas[i_carry[j-1]]],
-                                q_ancillas[i_carry[j]],
-                                [q_ancillas[i_control]]
-                            )
-                            qc.cx(q_state, q_ancillas[i_carry[j]])
-                            qc.x(q[i_sum[j]])
-                            qc.x(q_ancillas[i_carry[j-1]])
-                            qc.cx(q_state, q[i_sum[j]])
-                            qc.ccx(q_state, q_ancillas[i_carry[j-1]], q[i_sum[j]])
+            # loop over bits of current weight and add them to sum and carry registers
+            for j, bit in enumerate(weight_binary):
+                if bit == '1':
+                    if self.num_sum_qubits == 1:
+                        self.cx(q_state, qr_sum[j])
+                    elif j == 0:
+                        # compute (q_sum[0] + 1) into (q_sum[0], q_carry[0])
+                        # - controlled by q_state[i]
+                        self.ccx(q_state, qr_sum[j], qr_carry[j])
+                        self.cx(q_state, qr_sum[j])
+                    elif j == self.num_sum_qubits - 1:
+                        # compute (q_sum[j] + q_carry[j-1] + 1) into (q_sum[j])
+                        # - controlled by q_state[i] / last qubit,
+                        # no carry needed by construction
+                        self.cx(q_state, qr_sum[j])
+                        self.ccx(q_state, qr_carry[j - 1], qr_sum[j])
                     else:
-                        if self.num_sum_qubits == 1:
-                            pass  # nothing to do, since nothing to add
-                        elif j == 0:
-                            pass  # nothing to do, since nothing to add
-                        elif j == self.num_sum_qubits-1:
-                            # compute (q_sum[j] + q_carry[j-1]) into (q_sum[j])
-                            # - controlled by q_state[i] / last qubit,
-                            # no carry needed by construction
-                            qc.ccx(q_state, q_ancillas[i_carry[j - 1]], q[i_sum[j]])
-                        else:
-                            # compute (q_sum[j] + q_carry[j-1]) into (q_sum[j], q_carry[j])
-                            # - controlled by q_state[i]
-                            qc.mct(
-                                [q_state, q[i_sum[j]], q_ancillas[i_carry[j-1]]],
-                                q_ancillas[i_carry[j]],
-                                [q_ancillas[i_control]]
-                            )
-                            qc.ccx(q_state, q_ancillas[i_carry[j-1]], q[i_sum[j]])
-
-                # uncompute carry qubits
-                for j in reversed(range(len(w_bits))):
-                    b = w_bits[j]
-                    if b == '1':
-                        if self.num_sum_qubits == 1:
-                            pass
-                        elif j == 0:
-                            qc.x(q[i_sum[j]])
-                            qc.ccx(q_state, q[i_sum[j]], q_ancillas[i_carry[j]])
-                            qc.x(q[i_sum[j]])
-                        elif j == self.num_sum_qubits - 1:
-                            pass
-                        else:
-                            qc.x(q_ancillas[i_carry[j - 1]])
-                            qc.mct(
-                                [q_state, q[i_sum[j]], q_ancillas[i_carry[j - 1]]],
-                                q_ancillas[i_carry[j]],
-                                [q_ancillas[i_control]]
-                            )
-                            qc.cx(q_state, q_ancillas[i_carry[j]])
-                            qc.x(q_ancillas[i_carry[j - 1]])
+                        # compute (q_sum[j] + q_carry[j-1] + 1) into (q_sum[j], q_carry[j])
+                        # - controlled by q_state[i]
+                        self.x(qr_sum[j])
+                        self.x(qr_carry[j - 1])
+                        self.mct([q_state, qr_sum[j], qr_carry[j - 1]], qr_carry[j], [q_control])
+                        self.cx(q_state, qr_carry[j])
+                        self.x(qr_sum[j])
+                        self.x(qr_carry[j - 1])
+                        self.cx(q_state, qr_sum[j])
+                        self.ccx(q_state, qr_carry[j - 1], qr_sum[j])
+                else:
+                    if self.num_sum_qubits == 1:
+                        pass  # nothing to do, since nothing to add
+                    elif j == 0:
+                        pass  # nothing to do, since nothing to add
+                    elif j == self.num_sum_qubits-1:
+                        # compute (q_sum[j] + q_carry[j-1]) into (q_sum[j])
+                        # - controlled by q_state[i] / last qubit,
+                        # no carry needed by construction
+                        self.ccx(q_state, qr_carry[j - 1], qr_sum[j])
                     else:
-                        if self.num_sum_qubits == 1:
-                            pass
-                        elif j == 0:
-                            pass
-                        elif j == self.num_sum_qubits - 1:
-                            pass
-                        else:
-                            # compute (q_sum[j] + q_carry[j-1]) into (q_sum[j], q_carry[j])
-                            # - controlled by q_state[i]
-                            qc.x(q[i_sum[j]])
-                            qc.mct(
-                                [q_state, q[i_sum[j]], q_ancillas[i_carry[j - 1]]],
-                                q_ancillas[i_carry[j]],
-                                [q_ancillas[i_control]]
-                            )
-                            qc.x(q[i_sum[j]])
+                        # compute (q_sum[j] + q_carry[j-1]) into (q_sum[j], q_carry[j])
+                        # - controlled by q_state[i]
+                        self.mct([q_state, qr_sum[j], qr_carry[j - 1]], qr_carry[j], [q_control])
+                        self.ccx(q_state, qr_carry[j - 1], qr_sum[j])
+
+            # uncompute carry qubits
+            for j in reversed(range(len(weight_binary))):
+                bit = weight_binary[j]
+                if bit == '1':
+                    if self.num_sum_qubits == 1:
+                        pass
+                    elif j == 0:
+                        self.x(qr_sum[j])
+                        self.ccx(q_state, qr_sum[j], qr_carry[j])
+                        self.x(qr_sum[j])
+                    elif j == self.num_sum_qubits - 1:
+                        pass
+                    else:
+                        self.x(qr_carry[j - 1])
+                        self.mct([q_state, qr_sum[j], qr_carry[j - 1]], qr_carry[j], [q_control])
+                        self.cx(q_state, qr_carry[j])
+                        self.x(qr_carry[j - 1])
+                else:
+                    if self.num_sum_qubits == 1:
+                        pass
+                    elif j == 0:
+                        pass
+                    elif j == self.num_sum_qubits - 1:
+                        pass
+                    else:
+                        # compute (q_sum[j] + q_carry[j-1]) into (q_sum[j], q_carry[j])
+                        # - controlled by q_state[i]
+                        self.x(qr_sum[j])
+                        self.mct([q_state, qr_sum[j], qr_carry[j - 1]], qr_carry[j], [q_control])
+                        self.x(qr_sum[j])

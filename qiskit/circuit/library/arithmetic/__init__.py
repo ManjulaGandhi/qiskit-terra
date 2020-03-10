@@ -16,5 +16,6 @@
 
 from .fixed_value_comparator import FixedValueComparator
 from .linear_rotation import LinearRotation
-from .polynomial_rotation import PolynomialRotation
 from .piecewise_linear_rotation import PiecewiseLinearRotation
+from .polynomial_rotation import PolynomialRotation
+from .weighted_sum_operator import WeightedSumOperator
