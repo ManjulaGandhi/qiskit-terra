@@ -80,6 +80,8 @@ class PiecewiseLinearRotation(QuantumCircuit):
 
         super().__init__(qr_state, qr_target, qr_ancilla)
 
+        self._build(qr_state, qr_target, qr_ancilla)
+
     def evaluate(self, x):
         """
         Classically evaluate the piecewise linear rotation
@@ -114,8 +116,8 @@ class PiecewiseLinearRotation(QuantumCircuit):
             if i == 0 and self.contains_zero_breakpoint:
                 # apply rotation
                 lin_r = LinR(self.num_state_qubits, self.mapped_slopes[i], self.mapped_offsets[i],
-                             basis=self.basis).to_instruction()
-                self.append(lin_r, qr_state[:] + qr_target[:])
+                             basis=self.basis)
+                self.append(lin_r.to_gate(), qr_state[:] + qr_target[:])
 
             else:
                 if self.contains_zero_breakpoint:
@@ -124,16 +126,19 @@ class PiecewiseLinearRotation(QuantumCircuit):
                     i_compare = i
 
                 # apply comparator
-                comp = Comparator(self.num_state_qubits, point).to_instruction()
+                comp = Comparator(point, self.num_state_qubits)
                 qr = qr_state[:] + [qr_ancilla[i_compare]]  # add ancilla as compare qubit
-                qr_remaining_ancilla = qr_ancilla[i_compare:]  # take remaining ancillas
+                qr_remaining_ancilla = qr_ancilla[i_compare + 1:]  # take remaining ancillas
 
-                self.append(comp, qr[:] + qr_remaining_ancilla[:])
+                self.append(comp.to_gate(),
+                            qr[:] + qr_remaining_ancilla[:comp.num_ancilla_qubits])
 
                 # apply controlled rotation
                 lin_r = LinR(self.num_state_qubits, self.mapped_slopes[i], self.mapped_offsets[i],
-                             basis=self.basis).to_instruction()
-                self.append(lin_r.control(), qr_state[:] + qr_target[:] + [qr_ancilla[i - 1]])
+                             basis=self.basis)
+                self.append(lin_r.to_gate().control(),
+                            [qr_ancilla[i - 1]] + qr_state[:] + qr_target[:])
 
                 # uncompute comparator
-                self.append(comp.inverse(), qr[:] + qr_remaining_ancilla[:])
+                self.append(comp.to_gate().inverse(),
+                            qr[:] + qr_remaining_ancilla[:comp.num_ancilla_qubits])

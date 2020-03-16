@@ -57,6 +57,8 @@ class WeightedSumOperator(QuantumCircuit):
 
         super().__init__(qr_state, qr_sum, qr_ancilla)
 
+        self._build(qr_state, qr_sum, qr_ancilla)
+
     @staticmethod
     def get_required_sum_qubits(weights):
         """ get required sum qubits """

@@ -143,7 +143,7 @@ class TestFixedValueComparator(QiskitTestCase):
     def test_fixed_value_comparator(self, num_state_qubits, value, geq):
         """Test the fixed value comparator circuit."""
         # build the circuit with the comparator
-        comp = FixedValueComparator(num_state_qubits, value, geq).to_instruction()
+        comp = FixedValueComparator(value, num_state_qubits, geq=geq).to_gate()
         qc = QuantumCircuit(comp.num_qubits)  # initialize circuit
         qc.h(list(range(num_state_qubits)))  # set equal superposition state
         qc.append(comp, list(range(qc.n_qubits)))  # add comparator

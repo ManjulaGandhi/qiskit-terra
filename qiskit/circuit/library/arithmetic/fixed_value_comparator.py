@@ -39,7 +39,7 @@ class FixedValueComparator(QuantumCircuit):
                  value: int,
                  num_state_qubits: Optional[int] = None,
                  qr_state: Optional[QuantumRegister] = None,
-                 qr_target: Optional[QuantumRegister] = None,
+                 qr_result: Optional[QuantumRegister] = None,
                  qr_ancilla: Optional[QuantumRegister] = None,
                  geq: bool = True) -> None:
         """
