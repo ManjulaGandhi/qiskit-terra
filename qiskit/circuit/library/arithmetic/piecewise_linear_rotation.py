@@ -126,7 +126,7 @@ class PiecewiseLinearRotation(QuantumCircuit):
                     i_compare = i
 
                 # apply comparator
-                comp = Comparator(point, self.num_state_qubits)
+                comp = Comparator(self.num_state_qubits, point)
                 qr = qr_state[:] + [qr_ancilla[i_compare]]  # add ancilla as compare qubit
                 qr_remaining_ancilla = qr_ancilla[i_compare + 1:]  # take remaining ancillas
 

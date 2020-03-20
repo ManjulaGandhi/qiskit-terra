@@ -23,7 +23,7 @@ from qiskit.circuit import QuantumCircuit, QuantumRegister
 from qiskit.circuit.exceptions import CircuitError
 from qiskit.circuit.library import Permutation, XOR, InnerProduct
 from qiskit.circuit.library.arithmetic import (LinearRotation, PolynomialRotation,
-                                               FixedValueComparator)
+                                               FixedValueComparator, PiecewiseLinearRotation)
 
 
 class TestBooleanLogicLibrary(QiskitTestCase):
@@ -122,6 +122,49 @@ class TestArithmeticCircuits(QiskitTestCase):
                 self.assertAlmostEqual(amplitude.real, expected)
                 self.assertAlmostEqual(amplitude.imag, 0)
 
+    @data(
+        (3, [1, 3], [1, 0, -0.5], [0, 0, 0])
+    )
+    @unpack
+    def test_piecewise_linear(self, num_state_qubits, breakpoints, slopes, offsets):
+        pw_linear_function = PiecewiseLinearRotation(num_state_qubits, breakpoints,
+                                                     [2 * slope for slope in slopes],
+                                                     [2 * offset for offset in offsets])
+
+        def reference(x):
+            for i, point in enumerate(breakpoints[1:] + [2**num_state_qubits]):
+                if x >= point:
+                    return offsets[-i] + slopes[-i] * (x - point)
+            return 0
+
+        import matplotlib.pyplot as plt
+        x = list(range(8))
+        plt.plot(x, [reference(xi) for xi in x])
+        plt.show()
+
+        circuit = QuantumCircuit(num_state_qubits + 1 + pw_linear_function.num_ancillas)
+        circuit.h(list(range(num_state_qubits)))
+        circuit.append(pw_linear_function.to_gate(), list(range(circuit.n_qubits)))
+
+        backend = BasicAer.get_backend('statevector_simulator')
+        statevector = execute(circuit, backend).result().get_statevector()
+
+        amplitudes = {}
+        for i, statevector_amplitude in enumerate(statevector):
+            i = bin(i)[2:].zfill(circuit.n_qubits)[pw_linear_function.num_ancillas:]
+            amplitudes[i] = amplitudes.get(i, 0) + statevector_amplitude
+
+        for i, amplitude in amplitudes.items():
+            x, last_qubit = int(i[1:], 2), i[0]
+            if last_qubit == '0':
+                expected = np.cos(reference(x)) / np.sqrt(2**num_state_qubits)
+            else:
+                expected = np.sin(reference(x)) / np.sqrt(2**num_state_qubits)
+
+            with self.subTest(x=x, last_qubit=last_qubit):
+                self.assertAlmostEqual(amplitude.real, expected)
+                self.assertAlmostEqual(amplitude.imag, 0)
+
 
 @ddt
 class TestFixedValueComparator(QiskitTestCase):
@@ -143,10 +186,10 @@ class TestFixedValueComparator(QiskitTestCase):
     def test_fixed_value_comparator(self, num_state_qubits, value, geq):
         """Test the fixed value comparator circuit."""
         # build the circuit with the comparator
-        comp = FixedValueComparator(value, num_state_qubits, geq=geq).to_gate()
+        comp = FixedValueComparator(num_state_qubits, value, geq=geq).to_gate()
         qc = QuantumCircuit(comp.num_qubits)  # initialize circuit
         qc.h(list(range(num_state_qubits)))  # set equal superposition state
-        qc.append(comp, list(range(qc.n_qubits)))  # add comparator
+        qc.append(comp, list(range(comp.num_qubits)))  # add comparator
 
         # run simulation
         backend = BasicAer.get_backend('statevector_simulator')
