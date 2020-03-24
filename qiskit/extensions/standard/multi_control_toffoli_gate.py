@@ -278,7 +278,7 @@ def mct(self, q_controls, q_target, q_ancilla, mode='basic'):
             raise QiskitError('MCT needs a list of qubits or a quantum register for controls.')
 
         # check target
-        if isinstance(q_target, Qubit):
+        if isinstance(q_target, (int, Qubit)):
             target_qubit = q_target
         else:
             raise QiskitError('MCT needs a single qubit as target.')
