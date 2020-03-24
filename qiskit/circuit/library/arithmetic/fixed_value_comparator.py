@@ -18,6 +18,7 @@ from typing import List, Optional
 import numpy as np
 
 from qiskit.circuit import QuantumCircuit, QuantumRegister
+from qiskit.circuit.exceptions import CircuitError
 from qiskit.aqua.circuits.gates import logical_or  # pylint: disable=unused-import
 
 
@@ -35,24 +36,45 @@ class FixedValueComparator(QuantumCircuit):
     condition is True otherwise it is False.
     """
 
-    def __init__(self,
-                 num_state_qubits: int,
-                 value: int,
-                 geq: bool = True) -> None:
+    def __init__(self, *regs, value: int, geq: bool = True,
+                 num_state_qubits: Optional[int] = None, name='cmp') -> None:
         """
-
         Args:
-            num_state_qubits (int): number of state qubits, the target qubit comes on top of this
-            value (int): fixed value to compare with
-            geq (Optional(bool)): evaluate ">=" condition of "<" condition
+            regs: The qubit registers.
+            value: The fixed value to compare with.
+            geq: Evaluate ">=" condition of "<" condition.
+            num_state_qubits: Number of state qubits. If this is set it will determine the number
+                of qubits required for the circuit.
+            name: Name of the circuit.
+
+        Raises:
+            CircuitError: If ``num_state_qubits`` is set and the determined number of qubits is
+                not compatible with the qubits provided in the registers.
         """
-        # store internals
+        super().__init__(*regs, name=name)
+
+        if num_state_qubits:
+            required_num_qubits = 2 * num_state_qubits
+
+            # if no qubits have been set yet, set them
+            if self.qregs == []:
+                self.add_register(required_num_qubits)
+            # else check if compatible
+            elif self.n_qubits < required_num_qubits:
+                raise CircuitError(
+                    'For {} state qubits a total of {} qubits are required, but \
+                     only {} are in the circuit'.format(num_state_qubits, required_num_qubits,
+                                                        self.n_qubits)
+                )
+        # infer the number of state qubits
+        else:
+            # store internals
         self._num_state_qubits = num_state_qubits
         self._value = value
         self._geq = geq
 
         # set up state and target registers
-        qr_state = QuantumRegister(num_state_qubits, 'state')
+        i_state =
         qr_result = QuantumRegister(1, 'result')
         self._num_state_qubits = num_state_qubits
 
