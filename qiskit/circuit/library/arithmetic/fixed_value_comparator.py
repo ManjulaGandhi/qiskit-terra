@@ -18,7 +18,6 @@ from typing import List, Optional
 import numpy as np
 
 from qiskit.circuit import QuantumCircuit, QuantumRegister
-from qiskit.circuit.exceptions import CircuitError
 from qiskit.aqua.circuits.gates import logical_or  # pylint: disable=unused-import
 
 
@@ -36,11 +35,12 @@ class FixedValueComparator(QuantumCircuit):
     condition is True otherwise it is False.
     """
 
-    def __init__(self, *regs, value: int, geq: bool = True,
-                 num_state_qubits: Optional[int] = None, name='cmp') -> None:
+    def __init__(self, num_state_qubits: Optional[int] = None,
+                 value: Optional[int] = None,
+                 geq: bool = True,
+                 name: str = 'cmp') -> None:
         """
         Args:
-            regs: The qubit registers.
             value: The fixed value to compare with.
             geq: Evaluate ">=" condition of "<" condition.
             num_state_qubits: Number of state qubits. If this is set it will determine the number
@@ -51,38 +51,21 @@ class FixedValueComparator(QuantumCircuit):
             CircuitError: If ``num_state_qubits`` is set and the determined number of qubits is
                 not compatible with the qubits provided in the registers.
         """
-        super().__init__(*regs, name=name)
+        super().__init__(name=name)
 
-        if num_state_qubits:
-            required_num_qubits = 2 * num_state_qubits
-
-            # if no qubits have been set yet, set them
-            if self.qregs == []:
-                self.add_register(required_num_qubits)
-            # else check if compatible
-            elif self.n_qubits < required_num_qubits:
-                raise CircuitError(
-                    'For {} state qubits a total of {} qubits are required, but \
-                     only {} are in the circuit'.format(num_state_qubits, required_num_qubits,
-                                                        self.n_qubits)
-                )
-        # infer the number of state qubits
-        else:
-            num_state_qubits = self.n_qubits // 2
-
-        # store internals
+        self._data = None
         self._num_state_qubits = num_state_qubits
         self._value = value
         self._geq = geq
 
-        # set up the indices
-        i = list(range(2 * num_state_qubits))
-        self.i_state = i[:num_state_qubits]
-        self.i_compare = i[num_state_qubits],
-        self.i_ancilla = i[num_state_qubits + 1:]
+    @property
+    def n_qubits(self) -> int:
+        """Return the number of qubits in the circuit.
 
-        # build circuit
-        self._build()
+        Returns:
+            The number of qubits.
+        """
+        return 2 * self.num_state_qubits
 
     @property
     def value(self) -> int:
@@ -93,6 +76,37 @@ class FixedValueComparator(QuantumCircuit):
         """
         return self._value
 
+    @value.setter
+    def value(self, value: int) -> None:
+        if value == self._value:
+            return
+
+        # reset data
+        self._data = None
+        self._value = value
+
+    @property
+    def geq(self) -> bool:
+        """Return whether the comparator compares greater or less equal.
+
+        Returns:
+            True, if the comparator compares '>=', False if '<'.
+        """
+        return self._geq
+
+    @geq.setter
+    def geq(self, geq: bool) -> None:
+        """Set whether the comparator compares greater or less equal.
+
+        Args:
+            geq: If True, the comparator compares '>=', if False '<'.
+        """
+        if geq == self._geq:
+            return
+
+        self._data = []
+        self._geq = geq
+
     @property
     def num_state_qubits(self) -> int:
         """The number of qubits encoding the state for the comparison.
@@ -101,6 +115,31 @@ class FixedValueComparator(QuantumCircuit):
             The number of state qubits.
         """
         return self._num_state_qubits
+
+    @num_state_qubits.setter
+    def num_state_qubits(self, num_state_qubits: int) -> None:
+        """Set the number of state qubits.
+
+        Args:
+            num_state_qubits: The new number of state qubits.
+        """
+        if num_state_qubits == self.num_state_qubits:
+            return
+
+        # reset data
+        self._data = None
+        self._num_state_qubits = num_state_qubits
+
+    @property
+    def qregs(self):
+        """Get the qubit registers."""
+        self._build()
+        return super().qregs
+
+    @qregs.setter
+    def qregs(self, qregs):
+        """Set the qubit registers."""
+        super().qregs = qregs
 
     @property
     def num_ancilla_qubits(self) -> int:
@@ -126,10 +165,24 @@ class FixedValueComparator(QuantumCircuit):
 
     def _build(self) -> None:
         """Build the comparator circuit."""
-        i_state, i_compare, i_ancilla = self.i_state, self.i_compare, self.i_ancilla
+        # set the register
+        if self._data:
+            return
+
+        # reset registers
+        self.qregs = []
+        self.cregs = []
+
+        # add the new registers of appropriate size
+        qr_state = QuantumRegister(self.num_state_qubits)
+        qr_compare = QuantumRegister(1)
+        qr_ancilla = QuantumRegister(self.num_ancilla_qubits)
+
+        self.add_registers(qr_state, qr_compare, qr_ancilla)
+
         if self.value <= 0:  # condition always satisfied for non-positive values
             if self._geq:  # otherwise the condition is never satisfied
-                self.x(i_compare)
+                self.x(qr_compare)
         # condition never satisfied for values larger than or equal to 2^n
         elif self.value < pow(2, self.num_state_qubits):
 
@@ -138,43 +191,43 @@ class FixedValueComparator(QuantumCircuit):
                 for i in range(self.num_state_qubits):
                     if i == 0:
                         if twos[i] == 1:
-                            self.cx(i_state[i], i_ancilla[i])
+                            self.cx(qr_state[i], qr_ancilla[i])
                     elif i < self.num_state_qubits - 1:
                         if twos[i] == 1:
-                            self.OR([i_state[i], i_ancilla[i - 1]], i_ancilla[i], None)
+                            self.OR([qr_state[i], qr_ancilla[i - 1]], qr_ancilla[i], None)
                         else:
-                            self.ccx(i_state[i], i_ancilla[i - 1], i_ancilla[i])
+                            self.ccx(qr_state[i], qr_ancilla[i - 1], qr_ancilla[i])
                     else:
                         if twos[i] == 1:
                             # OR needs the result argument as qubit not register, thus
                             # access the index [0]
-                            self.OR([i_state[i], i_ancilla[i - 1]], i_compare[0], None)
+                            self.OR([qr_state[i], qr_ancilla[i - 1]], qr_compare[0], None)
                         else:
-                            self.ccx(i_state[i], i_ancilla[i - 1], i_compare)
+                            self.ccx(qr_state[i], qr_ancilla[i - 1], qr_compare)
 
                 # flip result bit if geq flag is false
                 if not self._geq:
-                    self.x(i_compare)
+                    self.x(qr_compare)
 
                 # uncompute ancillas state
                 for i in reversed(range(self.num_state_qubits-1)):
                     if i == 0:
                         if twos[i] == 1:
-                            self.cx(i_state[i], i_ancilla[i])
+                            self.cx(qr_state[i], qr_ancilla[i])
                     else:
                         if twos[i] == 1:
-                            self.OR([i_state[i], i_ancilla[i - 1]], i_ancilla[i], None)
+                            self.OR([qr_state[i], qr_ancilla[i - 1]], qr_ancilla[i], None)
                         else:
-                            self.ccx(i_state[i], i_ancilla[i - 1], i_ancilla[i])
+                            self.ccx(qr_state[i], qr_ancilla[i - 1], qr_ancilla[i])
             else:
 
                 # num_state_qubits == 1 and value == 1:
-                self.cx(i_state[0], i_compare)
+                self.cx(qr_state[0], qr_compare)
 
                 # flip result bit if geq flag is false
                 if not self._geq:
-                    self.x(i_compare)
+                    self.x(qr_compare)
 
         else:
             if not self._geq:  # otherwise the condition is never satisfied
-                self.x(i_compare)
+                self.x(qr_compare)
