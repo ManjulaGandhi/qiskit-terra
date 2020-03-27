@@ -104,7 +104,7 @@ class FixedValueComparator(QuantumCircuit):
         if geq == self._geq:
             return
 
-        self._data = []
+        self._data = None
         self._geq = geq
 
     @property
@@ -128,18 +128,31 @@ class FixedValueComparator(QuantumCircuit):
 
         # reset data
         self._data = None
+        self._qregs = []
         self._num_state_qubits = num_state_qubits
 
     @property
     def qregs(self):
         """Get the qubit registers."""
-        self._build()
-        return super().qregs
+        self._check_configuration()
+
+        if len(self._qregs) == 0 and self.num_state_qubits > 0:
+            # add the new registers of appropriate size
+            qr_state = QuantumRegister(self.num_state_qubits)
+            qr_compare = QuantumRegister(1)
+
+            self._qregs = [qr_state, qr_compare]
+
+            if self.num_ancilla_qubits > 0:
+                qr_ancilla = QuantumRegister(self.num_ancilla_qubits)
+                self._qregs += [qr_ancilla]
+
+        return self._qregs
 
     @qregs.setter
     def qregs(self, qregs):
         """Set the qubit registers."""
-        super().qregs = qregs
+        self._qregs = qregs
 
     @property
     def num_ancilla_qubits(self) -> int:
@@ -163,22 +176,40 @@ class FixedValueComparator(QuantumCircuit):
             [1 if twos_complement[i] == '1' else 0 for i in reversed(range(len(twos_complement)))]
         return twos_complement
 
+    @property
+    def data(self):
+        if self._data is None:
+            self._build()
+        return self._data
+
+    def copy(self, name=None):
+        if self._data is None:
+            self._build()
+        return super().copy(name)
+
+    def _check_configuration(self) -> None:
+        """Check if the current configuration is valid."""
+        if self._num_state_qubits is None:
+            raise ValueError('Number of state qubits is not set.')
+
+        if self._value is None:
+            raise ValueError('No comparison value set.')
+
     def _build(self) -> None:
         """Build the comparator circuit."""
         # set the register
         if self._data:
             return
 
-        # reset registers
-        self.qregs = []
-        self.cregs = []
+        self._check_configuration()
 
-        # add the new registers of appropriate size
-        qr_state = QuantumRegister(self.num_state_qubits)
-        qr_compare = QuantumRegister(1)
-        qr_ancilla = QuantumRegister(self.num_ancilla_qubits)
+        self._data = []
 
-        self.add_registers(qr_state, qr_compare, qr_ancilla)
+        # pylint: disable=unbalanced-tuple-unpacking
+        if self.num_ancilla_qubits > 0:
+            qr_state, qr_compare, qr_ancilla = self.qregs
+        else:
+            qr_state, qr_compare = self.qregs
 
         if self.value <= 0:  # condition always satisfied for non-positive values
             if self._geq:  # otherwise the condition is never satisfied
