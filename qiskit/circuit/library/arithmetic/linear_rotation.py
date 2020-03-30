@@ -2,7 +2,7 @@
 
 # This code is part of Qiskit.
 #
-# (C) Copyright IBM 2019, 2020.
+# (C) Copyright IBM 2017, 2020.
 #
 # This code is licensed under the Apache License, Version 2.0. You may
 # obtain a copy of this license in the LICENSE.txt file in the root directory
@@ -14,6 +14,7 @@
 
 """Linearly-controlled X, Y or Z rotation."""
 
+from typing import Optional
 import numpy as np
 
 from qiskit.circuit import QuantumCircuit, QuantumRegister
@@ -43,27 +44,32 @@ class LinearRotation(QuantumCircuit):
 
     Since for small arguments :math:`\sin(x) \approx x` this operator can be used to approximate
     linear functions.
-
     """
 
-    def __init__(self, num_state_qubits: int, slope: float, offset: float, basis: str = 'Y'
-                 ) -> None:
-        r"""
+    def __init__(self, num_state_qubits: Optional[int] = None,
+                 slope: float = 1,
+                 offset: float = 0,
+                 basis: str = 'Y') -> None:
+        r"""Create a new linear rotation circuit.
+
         Args:
-            num_state_qubits (int): The number of qubits representing the state :math:`|x\rangle`.
-            slope (float): The slope of the controlled rotation.
-            offset (float): The offset of the controlled rotation.
-            basis (str): The type of Pauli rotation ('X', 'Y', 'Z').
+            num_state_qubits: The number of qubits representing the state :math:`|x\rangle`.
+            slope: The slope of the controlled rotation.
+            offset: The offset of the controlled rotation.
+            basis: The type of Pauli rotation ('X', 'Y', 'Z').
 
         Raises:
-            ValueError: invalid input
+            ValueError: The provided basis in not X, Y or Z.
         """
         qr_state = QuantumRegister(num_state_qubits, name='state')
         qr_target = QuantumRegister(1, name='target')
         super().__init__(qr_state, qr_target)
 
+        # define internal parameters
+        self._num_state_qubits, self._slope, self._offset = None, None, None
+
         # store parameters
-        self.num_control_qubits = num_state_qubits
+        self.num_state_qubits = num_state_qubits
         self.slope = slope
         self.offset = offset
         self.basis = basis.lower()
@@ -73,7 +79,86 @@ class LinearRotation(QuantumCircuit):
 
         self._build(qr_state, qr_target)
 
+    @property
+    def num_state_qubits(self) -> int:
+        """The number of state qubits, or the number of controlled operations.
+
+        Returns:
+            The number of qubits a rotation is controlled on.
+        """
+        return self._num_state_qubits
+
+    @num_state_qubits.setter
+    def num_state_qubits(self, num_state_qubits: int) -> None:
+        """Set the number of state qubits.
+
+        Args:
+            num_state_qubits: The new number of state qubits.
+        """
+        if self._num_state_qubits is None or num_state_qubits != self._num_state_qubits:
+            self._num_state_qubits = num_state_qubits
+            self._data = None
+
+    @property
+    def slope(self) -> float:
+        """The multiplicative factor in the rotation angle of the controlled rotations.
+
+        The rotation angles are ``slope * 2^0``, ``slope * 2^1``, ... , ``slope * 2^(n-1)`` where
+        ``n`` is the number of state qubits.
+
+        Returns:
+            The rotation angle common in all controlled rotations.
+        """
+        return self._slope
+
+    @slope.setter
+    def slope(self, slope: float) -> None:
+        """Set the multiplicative factor of the rotation angles.
+
+        Args:
+            The slope of the rotation angles.
+        """
+        if self._slope is None or slope != self._slope:
+            self._slope = slope
+            self._data = None
+
+    @property
+    def offset(self) -> float:
+        """The angle of the single qubit offset rotation on the target qubit.
+
+        Before applying the controlled rotations, a single rotation of angle ``offset`` is
+        applied to the target qubit.
+
+        Returns:
+            The offset angle.
+        """
+        return self._offset
+
+    @offset.setter
+    def offset(self, offset: float) -> None:
+        """Set the angle for the offset rotation on the target qubit.
+
+        Args:
+            offset: The offset rotation angle.
+        """
+        if self._offset is None or offset != self._offset:
+            self._offset = offset
+            self._data = None
+
+    def _configuration_is_valid(self, raise_on_failure: bool = True) -> bool:
+        valid = True
+
+        if self.num_state_qubits is None:
+            valid = False
+            if raise_on_failure:
+                raise AttributeError('The number of state qubits has not been set.')
+
+        return valid
+
     def _build(self, qr_state, qr_target):
+
+        _ = self._configuration_is_valid()
+
         if not np.isclose(self.offset / 4 / np.pi % 1, 0):
             if self.basis == 'x':
                 self.rx(self.offset, qr_target)

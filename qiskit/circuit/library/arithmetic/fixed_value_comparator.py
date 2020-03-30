@@ -2,7 +2,7 @@
 
 # This code is part of Qiskit.
 #
-# (C) Copyright IBM 2018, 2020.
+# (C) Copyright IBM 2017, 2020.
 #
 # This code is licensed under the Apache License, Version 2.0. You may
 # obtain a copy of this license in the LICENSE.txt file in the root directory
@@ -59,7 +59,7 @@ class FixedValueComparator(QuantumCircuit):
         self._geq = geq
 
     @property
-    def n_qubits(self) -> int:
+    def num_qubits(self) -> int:
         """Return the number of qubits in the circuit.
 
         Returns:
@@ -194,6 +194,15 @@ class FixedValueComparator(QuantumCircuit):
 
         if self._value is None:
             raise ValueError('No comparison value set.')
+
+        if self.num_ancilla_qubits > 0:
+            if len(self.qregs) != 3:
+                raise ValueError('Expected 3 registers: state, control and ancilla, '
+                                 'found {}.'.format(len(self.qregs)))
+        else:
+            if len(self.qregs) != 2:
+                raise ValueError('Expected 2 registers: state and control, '
+                                 'found {}.'.format(len(self.qregs)))
 
     def _build(self) -> None:
         """Build the comparator circuit."""
