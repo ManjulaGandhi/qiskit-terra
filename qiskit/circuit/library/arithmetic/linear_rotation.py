@@ -14,10 +14,10 @@
 
 """Linearly-controlled X, Y or Z rotation."""
 
-from typing import Optional
+from typing import Optional, List, Tuple
 import numpy as np
 
-from qiskit.circuit import QuantumCircuit, QuantumRegister
+from qiskit.circuit import QuantumCircuit, QuantumRegister, Qubit, Clbit, Instruction
 
 
 class LinearRotation(QuantumCircuit):
@@ -46,57 +46,61 @@ class LinearRotation(QuantumCircuit):
     linear functions.
     """
 
-    def __init__(self, num_state_qubits: Optional[int] = None,
+    def __init__(self, num_qubits: Optional[int] = None,
                  slope: float = 1,
                  offset: float = 0,
-                 basis: str = 'Y') -> None:
+                 basis: str = 'Y',
+                 name: str = 'LinRot') -> None:
         r"""Create a new linear rotation circuit.
 
         Args:
-            num_state_qubits: The number of qubits representing the state :math:`|x\rangle`.
+            num_qubits: The number of qubits representing the state :math:`|x\rangle`.
             slope: The slope of the controlled rotation.
             offset: The offset of the controlled rotation.
             basis: The type of Pauli rotation ('X', 'Y', 'Z').
+            name: The name of the circuit object.
+        """
+        if num_qubits:
+            super().__init__(num_qubits, name=name)
+        else:
+            super().__init__(name=name)
+
+        # define internal parameters
+        self._basis = None
+        self._slope = None
+        self._offset = None
+
+        # store parameters
+        self.basis = basis
+        self.slope = slope
+        self.offset = offset
+
+    @property
+    def basis(self) -> str:
+        """The kind of Pauli rotation to be used.
+
+        Set the basis to 'X', 'Y' or 'Z' for controlled-X, -Y, or -Z rotations respectively.
+
+        Returns:
+            The kind of Pauli rotation used in controlled rotation.
+        """
+        return self._basis
+
+    @basis.setter
+    def basis(self, basis: str) -> None:
+        """Set the kind of Pauli rotation to be used.
+
+        Args:
+            basis: The Pauli rotation to be used.
 
         Raises:
             ValueError: The provided basis in not X, Y or Z.
         """
-        qr_state = QuantumRegister(num_state_qubits, name='state')
-        qr_target = QuantumRegister(1, name='target')
-        super().__init__(qr_state, qr_target)
-
-        # define internal parameters
-        self._num_state_qubits, self._slope, self._offset = None, None, None
-
-        # store parameters
-        self.num_state_qubits = num_state_qubits
-        self.slope = slope
-        self.offset = offset
-        self.basis = basis.lower()
-
-        if self.basis not in ['x', 'y', 'z']:
-            raise ValueError('The provided basis must be X, Y or Z, not {}'.format(basis))
-
-        self._build(qr_state, qr_target)
-
-    @property
-    def num_state_qubits(self) -> int:
-        """The number of state qubits, or the number of controlled operations.
-
-        Returns:
-            The number of qubits a rotation is controlled on.
-        """
-        return self._num_state_qubits
-
-    @num_state_qubits.setter
-    def num_state_qubits(self, num_state_qubits: int) -> None:
-        """Set the number of state qubits.
-
-        Args:
-            num_state_qubits: The new number of state qubits.
-        """
-        if self._num_state_qubits is None or num_state_qubits != self._num_state_qubits:
-            self._num_state_qubits = num_state_qubits
+        basis = basis.lower()
+        if self._basis is None or basis != self._basis:
+            if basis not in ['x', 'y', 'z']:
+                raise ValueError('The provided basis must be X, Y or Z, not {}'.format(basis))
+            self._basis = basis
             self._data = None
 
     @property
@@ -145,19 +149,48 @@ class LinearRotation(QuantumCircuit):
             self._offset = offset
             self._data = None
 
+    @QuantumCircuit.num_qubits.setter
+    def num_qubits(self, num_qubits: int) -> None:
+        """Set the number of qubits.
+
+        Note that this changes the underlying quantum register.
+
+        Args:
+            num_qubits: The new number of qubits.
+        """
+        if num_qubits != super().num_qubits:  # using self.num_qubits is disallowed by pylint
+            self._data = None
+
+            # set new register of appropriate size
+            qr = QuantumRegister(num_qubits, name='q')
+            self.qregs = [qr]
+
     def _configuration_is_valid(self, raise_on_failure: bool = True) -> bool:
         valid = True
 
-        if self.num_state_qubits is None:
+        if self.num_qubits is None:
             valid = False
             if raise_on_failure:
-                raise AttributeError('The number of state qubits has not been set.')
+                raise AttributeError('The number of qubits has not been set.')
 
         return valid
 
-    def _build(self, qr_state, qr_target):
+    @property
+    def data(self) -> List[Tuple[Instruction, List[Qubit], List[Clbit]]]:
+        """Get the circuit definition."""
+        if self._data is None:
+            self._build()
+        return self._data
+
+    def _build(self):
+        if self._data:
+            return
+
+        self._data = []
 
         _ = self._configuration_is_valid()
+
+        qr_state, qr_target = self.qubits[:-1], self.qubits[-1]
 
         if not np.isclose(self.offset / 4 / np.pi % 1, 0):
             if self.basis == 'x':

@@ -115,7 +115,9 @@ class PiecewiseLinearRotation(QuantumCircuit):
         for i, point in enumerate(self.breakpoints):
             if i == 0 and self.contains_zero_breakpoint:
                 # apply rotation
-                lin_r = LinR(self.num_state_qubits, self.mapped_slopes[i], self.mapped_offsets[i],
+                lin_r = LinR(num_qubits=self.num_state_qubits + 1,
+                             slope=self.mapped_slopes[i],
+                             offset=self.mapped_offsets[i],
                              basis=self.basis)
                 self.append(lin_r.to_gate(), qr_state[:] + qr_target[:])
 
@@ -126,7 +128,7 @@ class PiecewiseLinearRotation(QuantumCircuit):
                     i_compare = i
 
                 # apply comparator
-                comp = Comparator(self.num_state_qubits, point)
+                comp = Comparator(num_state_qubits=self.num_state_qubits, value=point)
                 qr = qr_state[:] + [qr_ancilla[i_compare]]  # add ancilla as compare qubit
                 qr_remaining_ancilla = qr_ancilla[i_compare + 1:]  # take remaining ancillas
 
@@ -134,10 +136,12 @@ class PiecewiseLinearRotation(QuantumCircuit):
                             qr[:] + qr_remaining_ancilla[:comp.num_ancilla_qubits])
 
                 # apply controlled rotation
-                lin_r = LinR(self.num_state_qubits, self.mapped_slopes[i], self.mapped_offsets[i],
+                lin_r = LinR(num_qubits=self.num_state_qubits + 1,
+                             slope=self.mapped_slopes[i],
+                             offset=self.mapped_offsets[i],
                              basis=self.basis)
                 self.append(lin_r.to_gate().control(),
-                            [qr_ancilla[i - 1]] + qr_state[:] + qr_target[:])
+                            [qr_ancilla[i_compare]] + qr_state[:] + qr_target[:])
 
                 # uncompute comparator
                 self.append(comp.to_gate().inverse(),

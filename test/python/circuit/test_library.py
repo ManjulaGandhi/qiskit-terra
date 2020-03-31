@@ -66,7 +66,7 @@ class TestArithmeticCircuits(QiskitTestCase):
         """Test the linear rotation arithmetic circuit."""
         slope, offset = 0.1, 0
         num_state_qubits = 2
-        linear_rotation = LinearRotation(num_state_qubits, slope * 2, offset * 2)
+        linear_rotation = LinearRotation(num_state_qubits + 1, slope * 2, offset * 2)
         circuit = QuantumCircuit(num_state_qubits + 1)
         circuit.h(list(range(num_state_qubits)))
         circuit.append(linear_rotation.to_instruction(), list(range(num_state_qubits + 1)))
@@ -139,22 +139,25 @@ class TestArithmeticCircuits(QiskitTestCase):
                     return offsets[-i] + slopes[-i] * (x - point)
             return 0
 
-        import matplotlib.pyplot as plt
-        x = list(range(8))
-        plt.plot(x, [reference(xi) for xi in x])
-        plt.show()
-
         circuit = QuantumCircuit(num_state_qubits + 1 + pw_linear_function.num_ancillas)
         circuit.h(list(range(num_state_qubits)))
-        circuit.append(pw_linear_function.to_gate(), list(range(circuit.n_qubits)))
+        circuit.append(pw_linear_function.to_gate(), list(range(circuit.num_qubits)))
+
+        import matplotlib.pyplot as plt
+        circuit.decompose().draw(output='mpl')
+        plt.show()
 
         backend = BasicAer.get_backend('statevector_simulator')
         statevector = execute(circuit, backend).result().get_statevector()
 
         amplitudes = {}
         for i, statevector_amplitude in enumerate(statevector):
-            i = bin(i)[2:].zfill(circuit.n_qubits)[pw_linear_function.num_ancillas:]
+            # print('ancillas', pw_linear_function.num_ancillas, 'num', circuit.num_qubits)
+            # print('before', i)
+            i = bin(i)[2:].zfill(circuit.num_qubits)[pw_linear_function.num_ancillas:]
+            # print('after', i)
             amplitudes[i] = amplitudes.get(i, 0) + statevector_amplitude
+            # print()
 
         for i, amplitude in amplitudes.items():
             x, last_qubit = int(i[1:], 2), i[0]
@@ -163,6 +166,7 @@ class TestArithmeticCircuits(QiskitTestCase):
             else:
                 expected = np.sin(reference(x)) / np.sqrt(2**num_state_qubits)
 
+            print('x', x, 'calculated', amplitude.real, 'expected', expected)
             with self.subTest(x=x, last_qubit=last_qubit):
                 self.assertAlmostEqual(amplitude.real, expected)
                 self.assertAlmostEqual(amplitude.imag, 0)

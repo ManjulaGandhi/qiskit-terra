@@ -18,6 +18,7 @@ from typing import List, Optional
 import numpy as np
 
 from qiskit.circuit import QuantumCircuit, QuantumRegister
+from qiskit.circuit.exceptions import CircuitError
 from qiskit.aqua.circuits.gates import logical_or  # pylint: disable=unused-import
 
 
@@ -39,33 +40,25 @@ class FixedValueComparator(QuantumCircuit):
                  value: Optional[int] = None,
                  geq: bool = True,
                  name: str = 'cmp') -> None:
-        """
+        """Create a new fixed value comparator circuit.
+
         Args:
-            value: The fixed value to compare with.
-            geq: Evaluate ">=" condition of "<" condition.
             num_state_qubits: Number of state qubits. If this is set it will determine the number
                 of qubits required for the circuit.
+            value: The fixed value to compare with.
+            geq: Evaluate ">=" condition of "<" condition.
             name: Name of the circuit.
-
-        Raises:
-            CircuitError: If ``num_state_qubits`` is set and the determined number of qubits is
-                not compatible with the qubits provided in the registers.
         """
         super().__init__(name=name)
 
         self._data = None
-        self._num_state_qubits = num_state_qubits
-        self._value = value
-        self._geq = geq
+        self._value = None
+        self._geq = None
+        self._num_state_qubits = None
 
-    @property
-    def num_qubits(self) -> int:
-        """Return the number of qubits in the circuit.
-
-        Returns:
-            The number of qubits.
-        """
-        return 2 * self.num_state_qubits
+        self.value = value
+        self.geq = geq
+        self.num_state_qubits = num_state_qubits
 
     @property
     def value(self) -> int:
@@ -78,12 +71,9 @@ class FixedValueComparator(QuantumCircuit):
 
     @value.setter
     def value(self, value: int) -> None:
-        if value == self._value:
-            return
-
-        # reset data
-        self._data = None
-        self._value = value
+        if value != self._value:
+            self._data = None  # reset data
+            self._value = value
 
     @property
     def geq(self) -> bool:
@@ -101,11 +91,9 @@ class FixedValueComparator(QuantumCircuit):
         Args:
             geq: If True, the comparator compares '>=', if False '<'.
         """
-        if geq == self._geq:
-            return
-
-        self._data = None
-        self._geq = geq
+        if geq != self._geq:
+            self._data = None  # reset data
+            self._geq = geq
 
     @property
     def num_state_qubits(self) -> int:
@@ -120,39 +108,24 @@ class FixedValueComparator(QuantumCircuit):
     def num_state_qubits(self, num_state_qubits: int) -> None:
         """Set the number of state qubits.
 
+        Note that this will change the quantum registers.
+
         Args:
             num_state_qubits: The new number of state qubits.
         """
-        if num_state_qubits == self.num_state_qubits:
-            return
+        if self._num_state_qubits is None or num_state_qubits != self._num_state_qubits:
+            self._data = None  # reset data
+            self._num_state_qubits = num_state_qubits
 
-        # reset data
-        self._data = None
-        self._qregs = []
-        self._num_state_qubits = num_state_qubits
+            # set the new qubit registers
+            qr_state = QuantumRegister(self.num_state_qubits, name='state')
+            q_compare = QuantumRegister(1, name='compare')
 
-    @property
-    def qregs(self):
-        """Get the qubit registers."""
-        self._check_configuration()
-
-        if len(self._qregs) == 0 and self.num_state_qubits > 0:
-            # add the new registers of appropriate size
-            qr_state = QuantumRegister(self.num_state_qubits)
-            qr_compare = QuantumRegister(1)
-
-            self._qregs = [qr_state, qr_compare]
+            self.qregs = [qr_state, q_compare]
 
             if self.num_ancilla_qubits > 0:
-                qr_ancilla = QuantumRegister(self.num_ancilla_qubits)
-                self._qregs += [qr_ancilla]
-
-        return self._qregs
-
-    @qregs.setter
-    def qregs(self, qregs):
-        """Set the qubit registers."""
-        self._qregs = qregs
+                qr_ancilla = QuantumRegister(self.num_ancilla_qubits, name='ancilla')
+                self.qregs += [qr_ancilla]
 
     @property
     def num_ancilla_qubits(self) -> int:
@@ -169,7 +142,6 @@ class FixedValueComparator(QuantumCircuit):
         Returns:
              The 2's complement of self.value.
         """
-
         twos_complement = pow(2, self.num_state_qubits) - int(np.ceil(self.value))
         twos_complement = '{0:b}'.format(twos_complement).rjust(self.num_state_qubits, '0')
         twos_complement = \
@@ -182,27 +154,30 @@ class FixedValueComparator(QuantumCircuit):
             self._build()
         return self._data
 
-    def copy(self, name=None):
-        if self._data is None:
-            self._build()
-        return super().copy(name)
-
-    def _check_configuration(self) -> None:
+    def _configuration_is_valid(self, raise_on_failure: bool = True) -> bool:
         """Check if the current configuration is valid."""
+        valid = True
+
         if self._num_state_qubits is None:
-            raise ValueError('Number of state qubits is not set.')
+            valid = False
+            if raise_on_failure:
+                raise AttributeError('Number of state qubits is not set.')
 
         if self._value is None:
-            raise ValueError('No comparison value set.')
+            valid = False
+            if raise_on_failure:
+                raise AttributeError('No comparison value set.')
 
-        if self.num_ancilla_qubits > 0:
-            if len(self.qregs) != 3:
-                raise ValueError('Expected 3 registers: state, control and ancilla, '
-                                 'found {}.'.format(len(self.qregs)))
-        else:
-            if len(self.qregs) != 2:
-                raise ValueError('Expected 2 registers: state and control, '
-                                 'found {}.'.format(len(self.qregs)))
+        for key, val in self.__dict__.items():
+            print(key, val)
+
+        required_num_qubits = 2 * self.num_state_qubits
+        if self.num_qubits != required_num_qubits:
+            valid = False
+            if raise_on_failure:
+                raise CircuitError('Number of qubits does not match required number of qubits.')
+
+        return valid
 
     def _build(self) -> None:
         """Build the comparator circuit."""
@@ -210,19 +185,17 @@ class FixedValueComparator(QuantumCircuit):
         if self._data:
             return
 
-        self._check_configuration()
+        _ = self._configuration_is_valid()
 
         self._data = []
 
-        # pylint: disable=unbalanced-tuple-unpacking
-        if self.num_ancilla_qubits > 0:
-            qr_state, qr_compare, qr_ancilla = self.qregs
-        else:
-            qr_state, qr_compare = self.qregs
+        qr_state = self.qubits[:self.num_state_qubits]
+        q_compare = self.qubits[self.num_state_qubits]
+        qr_ancilla = self.qubits[self.num_state_qubits:]
 
         if self.value <= 0:  # condition always satisfied for non-positive values
             if self._geq:  # otherwise the condition is never satisfied
-                self.x(qr_compare)
+                self.x(q_compare)
         # condition never satisfied for values larger than or equal to 2^n
         elif self.value < pow(2, self.num_state_qubits):
 
@@ -241,13 +214,13 @@ class FixedValueComparator(QuantumCircuit):
                         if twos[i] == 1:
                             # OR needs the result argument as qubit not register, thus
                             # access the index [0]
-                            self.OR([qr_state[i], qr_ancilla[i - 1]], qr_compare[0], None)
+                            self.OR([qr_state[i], qr_ancilla[i - 1]], q_compare, None)
                         else:
-                            self.ccx(qr_state[i], qr_ancilla[i - 1], qr_compare)
+                            self.ccx(qr_state[i], qr_ancilla[i - 1], q_compare)
 
                 # flip result bit if geq flag is false
                 if not self._geq:
-                    self.x(qr_compare)
+                    self.x(q_compare)
 
                 # uncompute ancillas state
                 for i in reversed(range(self.num_state_qubits-1)):
@@ -262,12 +235,12 @@ class FixedValueComparator(QuantumCircuit):
             else:
 
                 # num_state_qubits == 1 and value == 1:
-                self.cx(qr_state[0], qr_compare)
+                self.cx(qr_state[0], q_compare)
 
                 # flip result bit if geq flag is false
                 if not self._geq:
-                    self.x(qr_compare)
+                    self.x(q_compare)
 
         else:
             if not self._geq:  # otherwise the condition is never satisfied
-                self.x(qr_compare)
+                self.x(q_compare)
