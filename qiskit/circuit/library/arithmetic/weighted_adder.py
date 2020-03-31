@@ -26,7 +26,7 @@ from qiskit.circuit import QuantumCircuit, QuantumRegister
 logger = logging.getLogger(__name__)
 
 
-class WeightedSumOperator(QuantumCircuit):
+class WeightedAdder(QuantumCircuit):
     """
     Adds q^T * w to separate register for non-negative integer weights w
     """
@@ -48,7 +48,7 @@ class WeightedSumOperator(QuantumCircuit):
                                'the nearest integer! (%s, %s).', i, weight)
 
         self._num_state_qubits = num_state_qubits
-        self._num_sum_qubits = WeightedSumOperator.get_required_sum_qubits(weights)
+        self._num_sum_qubits = WeightedAdder.get_required_sum_qubits(weights)
         self._num_carry_qubits = self.num_sum_qubits - 1
 
         qr_state = QuantumRegister(self._num_state_qubits)

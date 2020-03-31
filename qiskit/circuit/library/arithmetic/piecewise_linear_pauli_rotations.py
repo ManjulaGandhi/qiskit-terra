@@ -18,13 +18,13 @@ from typing import List
 import numpy as np
 
 from qiskit.circuit import QuantumCircuit, QuantumRegister
-from qiskit.circuit.library.arithmetic import (LinearRotation as LinR,
+from qiskit.circuit.library.arithmetic import (LinearPauliRotations as LinR,
                                                FixedValueComparator as Comparator)
 
 
-class PiecewiseLinearRotation(QuantumCircuit):
-    """
-    Piecewise-linearly-controlled rotation.
+class PiecewiseLinearPauliRotations(QuantumCircuit):
+    """Piecewise-linearly-controlled Pauli rotations.
+
     For a piecewise linear (not necessarily continuous) function f(x).
     The function f(x) is defined through breakpoints, slopes and offsets as follows.
     Suppose the breakpoints { x_0, ..., x_J } are a subset of [0,  2^n-1], where
@@ -82,13 +82,14 @@ class PiecewiseLinearRotation(QuantumCircuit):
 
         self._build(qr_state, qr_target, qr_ancilla)
 
-    def evaluate(self, x):
-        """
-        Classically evaluate the piecewise linear rotation
+    def evaluate(self, x: float) -> float:
+        """Classically evaluate the piecewise linear rotation.
+
         Args:
-            x (float): value to be evaluated at
+            x: Value to be evaluated at.
+
         Returns:
-            float: value of piecewise linear function at x
+            Value of piecewise linear function at x.
         """
 
         y = (x >= self.breakpoints[0]) * (x * self.mapped_slopes[0] + self.mapped_offsets[0])
@@ -140,11 +141,6 @@ class PiecewiseLinearRotation(QuantumCircuit):
                              slope=self.mapped_slopes[i],
                              offset=self.mapped_offsets[i],
                              basis=self.basis)
-                print('lin_r', lin_r.__dict__)
-                print('drawing')
-                print(lin_r.draw())
-                cgate = lin_r.to_gate().control()
-                print('cgate', cgate.definition)
                 self.append(lin_r.to_gate().control(),
                             [qr_ancilla[i_compare]] + qr_state[:] + qr_target[:])
 

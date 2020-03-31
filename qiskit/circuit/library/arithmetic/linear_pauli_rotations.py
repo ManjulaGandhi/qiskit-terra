@@ -20,7 +20,7 @@ import numpy as np
 from qiskit.circuit import QuantumCircuit, QuantumRegister, Qubit, Clbit, Instruction
 
 
-class LinearRotation(QuantumCircuit):
+class LinearPauliRotations(QuantumCircuit):
     r"""Linearly-controlled X, Y or Z rotation.
 
     For a register of state qubits |x>, a target qubit |0> and the basis 'Y' this
