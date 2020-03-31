@@ -105,7 +105,7 @@ class FixedValueComparator(QuantumCircuit):
         return self._num_state_qubits
 
     @num_state_qubits.setter
-    def num_state_qubits(self, num_state_qubits: int) -> None:
+    def num_state_qubits(self, num_state_qubits: Optional[int]) -> None:
         """Set the number of state qubits.
 
         Note that this will change the quantum registers.
@@ -117,15 +117,16 @@ class FixedValueComparator(QuantumCircuit):
             self._data = None  # reset data
             self._num_state_qubits = num_state_qubits
 
-            # set the new qubit registers
-            qr_state = QuantumRegister(self.num_state_qubits, name='state')
-            q_compare = QuantumRegister(1, name='compare')
+            if num_state_qubits:
+                # set the new qubit registers
+                qr_state = QuantumRegister(self.num_state_qubits, name='state')
+                q_compare = QuantumRegister(1, name='compare')
 
-            self.qregs = [qr_state, q_compare]
+                self.qregs = [qr_state, q_compare]
 
-            if self.num_ancilla_qubits > 0:
-                qr_ancilla = QuantumRegister(self.num_ancilla_qubits, name='ancilla')
-                self.qregs += [qr_ancilla]
+                if self.num_ancilla_qubits > 0:
+                    qr_ancilla = QuantumRegister(self.num_ancilla_qubits, name='ancilla')
+                    self.qregs += [qr_ancilla]
 
     @property
     def num_ancilla_qubits(self) -> int:
@@ -168,9 +169,6 @@ class FixedValueComparator(QuantumCircuit):
             if raise_on_failure:
                 raise AttributeError('No comparison value set.')
 
-        for key, val in self.__dict__.items():
-            print(key, val)
-
         required_num_qubits = 2 * self.num_state_qubits
         if self.num_qubits != required_num_qubits:
             valid = False
@@ -191,7 +189,7 @@ class FixedValueComparator(QuantumCircuit):
 
         qr_state = self.qubits[:self.num_state_qubits]
         q_compare = self.qubits[self.num_state_qubits]
-        qr_ancilla = self.qubits[self.num_state_qubits:]
+        qr_ancilla = self.qubits[self.num_state_qubits + 1:]
 
         if self.value <= 0:  # condition always satisfied for non-positive values
             if self._geq:  # otherwise the condition is never satisfied

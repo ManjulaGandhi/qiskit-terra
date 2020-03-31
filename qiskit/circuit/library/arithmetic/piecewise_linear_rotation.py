@@ -140,6 +140,11 @@ class PiecewiseLinearRotation(QuantumCircuit):
                              slope=self.mapped_slopes[i],
                              offset=self.mapped_offsets[i],
                              basis=self.basis)
+                print('lin_r', lin_r.__dict__)
+                print('drawing')
+                print(lin_r.draw())
+                cgate = lin_r.to_gate().control()
+                print('cgate', cgate.definition)
                 self.append(lin_r.to_gate().control(),
                             [qr_ancilla[i_compare]] + qr_state[:] + qr_target[:])
 

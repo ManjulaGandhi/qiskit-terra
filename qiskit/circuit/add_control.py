@@ -114,6 +114,8 @@ def control(operation: Union[Gate, ControlledGate],
         qc.mcrz(operation.definition[0][0].params[0], q_control, q_target[0],
                 use_basis_gates=True)
     else:
+        print('operation:', operation.definition)
+        print('dict:', operation.__dict__)
         bgate = _unroll_gate(operation, ['u1', 'u3', 'cx'])
         # now we have a bunch of single qubit rotation gates and cx
         for rule in bgate.definition:

@@ -180,7 +180,8 @@ class LinearRotation(QuantumCircuit):
         """Get the circuit definition."""
         if self._data is None:
             self._build()
-        return self._data
+        return super().data
+        # return QuantumCircuitData(self)
 
     def _build(self):
         if self._data:
@@ -199,6 +200,7 @@ class LinearRotation(QuantumCircuit):
                 self.ry(self.offset, qr_target)
             else:  # 'Z':
                 self.rz(self.offset, qr_target)
+
         for i, q_i in enumerate(qr_state):
             theta = self.slope * pow(2, i)
             if not np.isclose(theta / 4 / np.pi % 1, 0):

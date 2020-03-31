@@ -59,7 +59,7 @@ class TestBooleanLogicLibrary(QiskitTestCase):
 
 
 @ddt
-class TestArithmeticCircuits(QiskitTestCase):
+class TestLinearRotation(QiskitTestCase):
     """Test the arithmetic circuits."""
 
     def test_linear_function(self):
@@ -86,6 +86,10 @@ class TestArithmeticCircuits(QiskitTestCase):
                 self.assertAlmostEqual(amplitude.real, expected)
                 self.assertAlmostEqual(amplitude.imag, 0)
 
+
+@ddt
+class TestPolynomialRotation(QiskitTestCase):
+    """Test the arithmetic circuits."""
     @data(
         ([1, 0.1], 3),
         ([0, 0.4, 2], 2),
@@ -96,20 +100,18 @@ class TestArithmeticCircuits(QiskitTestCase):
         polynome = PolynomialRotation(num_state_qubits, coeffs)
         circuit = QuantumCircuit(num_state_qubits + 1 + polynome.num_ancillas)
         circuit.h(list(range(num_state_qubits)))
-        circuit.append(polynome.to_instruction(), list(range(circuit.n_qubits)))
+        circuit.append(polynome.to_instruction(), list(range(circuit.num_qubits)))
 
         backend = BasicAer.get_backend('statevector_simulator')
         statevector = execute(circuit, backend).result().get_statevector()
 
         def poly(x):
-            res = 0
-            for i, coeff in enumerate(coeffs):
-                res += coeff * x**i
+            res = sum(coeff * x**i for i, coeff in enumerate(coeffs))
             return res
 
         amplitudes = {}
         for i, statevector_amplitude in enumerate(statevector):
-            i = bin(i)[2:].zfill(circuit.n_qubits)[polynome.num_ancillas:]
+            i = bin(i)[2:].zfill(circuit.num_qubits)[polynome.num_ancillas:]
             amplitudes[i] = amplitudes.get(i, 0) + statevector_amplitude
 
         for i, amplitude in amplitudes.items():
@@ -123,6 +125,10 @@ class TestArithmeticCircuits(QiskitTestCase):
                 self.assertAlmostEqual(amplitude.real, expected)
                 self.assertAlmostEqual(amplitude.imag, 0)
 
+
+@ddt
+class TestPiecewiseLinearRotation(QiskitTestCase):
+    """Test the arithmetic circuits."""
     @data(
         (3, [1, 3], [1, 0, -0.5], [0, 0, 0])
     )
@@ -221,13 +227,13 @@ class TestFixedValueComparator(QiskitTestCase):
         comp = FixedValueComparator()
 
         with self.subTest(msg='missing num state qubits and value'):
-            with self.assertRaises(ValueError):
+            with self.assertRaises(AttributeError):
                 print(comp.draw())
 
         comp.num_state_qubits = 2
 
         with self.subTest(msg='missing value'):
-            with self.assertRaises(ValueError):
+            with self.assertRaises(AttributeError):
                 print(comp.draw())
 
         comp.value = 0
