@@ -19,11 +19,11 @@ from ddt import ddt, data, unpack
 
 from qiskit.test.base import QiskitTestCase
 from qiskit import BasicAer, execute
-from qiskit.circuit import QuantumCircuit
+from qiskit.circuit import QuantumCircuit, QuantumRegister
 from qiskit.circuit.exceptions import CircuitError
 from qiskit.circuit.library import Permutation, XOR, InnerProduct
-from qiskit.circuit.library.arithmetic import (LinearRotation, PolynomialRotation,
-                                               FixedValueComparator, PiecewiseLinearRotation)
+from qiskit.circuit.library.arithmetic import (LinearPauliRotations, PolynomialPauliRotations,
+                                               FixedValueComparator, PiecewiseLinearPauliRotations)
 
 
 class TestBooleanLogicLibrary(QiskitTestCase):
@@ -66,7 +66,7 @@ class TestLinearRotation(QiskitTestCase):
         """Test the linear rotation arithmetic circuit."""
         slope, offset = 0.1, 0
         num_state_qubits = 2
-        linear_rotation = LinearRotation(num_state_qubits + 1, slope * 2, offset * 2)
+        linear_rotation = LinearPauliRotations(num_state_qubits + 1, slope * 2, offset * 2)
         circuit = QuantumCircuit(num_state_qubits + 1)
         circuit.h(list(range(num_state_qubits)))
         circuit.append(linear_rotation.to_instruction(), list(range(num_state_qubits + 1)))
@@ -97,7 +97,7 @@ class TestPolynomialRotation(QiskitTestCase):
     @unpack
     def test_polynomes(self, coeffs, num_state_qubits):
         """Test the polynomial rotation."""
-        polynome = PolynomialRotation(num_state_qubits, coeffs)
+        polynome = PolynomialPauliRotations(num_state_qubits, coeffs)
         circuit = QuantumCircuit(num_state_qubits + 1 + polynome.num_ancillas)
         circuit.h(list(range(num_state_qubits)))
         circuit.append(polynome.to_instruction(), list(range(circuit.num_qubits)))
@@ -130,40 +130,38 @@ class TestPolynomialRotation(QiskitTestCase):
 class TestPiecewiseLinearRotation(QiskitTestCase):
     """Test the arithmetic circuits."""
     @data(
-        (3, [1, 3], [1, 0, -0.5], [0, 0, 0])
+        (2, [0, 2], [-0.5, 1], [2, 1]),
+        (3, [0, 2, 5], [1, 0, -1], [0, 2, 2]),
+        (2, [1, 2], [1, -1], [2, 1]),
     )
     @unpack
     def test_piecewise_linear(self, num_state_qubits, breakpoints, slopes, offsets):
         """Test the piecewise linear rotations."""
-        pw_linear_function = PiecewiseLinearRotation(num_state_qubits, breakpoints,
-                                                     [2 * slope for slope in slopes],
-                                                     [2 * offset for offset in offsets])
+        c = 0.1
+        pw_linear_function = PiecewiseLinearPauliRotations(num_state_qubits, breakpoints,
+                                                           [2 * c * slope for slope in slopes],
+                                                           [2 * c * offset for offset in offsets])
 
         def reference(x):
-            for i, point in enumerate(breakpoints[1:] + [2**num_state_qubits]):
+            for i, point in enumerate(reversed(breakpoints)):
+                # for i, point in enumerate(breakpoints + [2**num_state_qubits]):
+                print('x:', x, 'point:', point)
                 if x >= point:
-                    return offsets[-i] + slopes[-i] * (x - point)
+                    print('using', offsets[-(i + 1)], slopes[-(i + 1)])
+                    return c * offsets[-(i + 1)] + c * slopes[-(i + 1)] * (x - point)
             return 0
 
         circuit = QuantumCircuit(num_state_qubits + 1 + pw_linear_function.num_ancillas)
         circuit.h(list(range(num_state_qubits)))
         circuit.append(pw_linear_function.to_gate(), list(range(circuit.num_qubits)))
 
-        import matplotlib.pyplot as plt
-        circuit.decompose().draw(output='mpl')
-        plt.show()
-
         backend = BasicAer.get_backend('statevector_simulator')
         statevector = execute(circuit, backend).result().get_statevector()
 
         amplitudes = {}
         for i, statevector_amplitude in enumerate(statevector):
-            # print('ancillas', pw_linear_function.num_ancillas, 'num', circuit.num_qubits)
-            # print('before', i)
             i = bin(i)[2:].zfill(circuit.num_qubits)[pw_linear_function.num_ancillas:]
-            # print('after', i)
             amplitudes[i] = amplitudes.get(i, 0) + statevector_amplitude
-            # print()
 
         for i, amplitude in amplitudes.items():
             x, last_qubit = int(i[1:], 2), i[0]
@@ -172,7 +170,6 @@ class TestPiecewiseLinearRotation(QiskitTestCase):
             else:
                 expected = np.sin(reference(x)) / np.sqrt(2**num_state_qubits)
 
-            print('x', x, 'calculated', amplitude.real, 'expected', expected)
             with self.subTest(x=x, last_qubit=last_qubit):
                 self.assertAlmostEqual(amplitude.real, expected)
                 self.assertAlmostEqual(amplitude.imag, 0)
@@ -251,3 +248,127 @@ class TestFixedValueComparator(QiskitTestCase):
         with self.subTest(msg='updating geq'):
             comp.geq = False
             self.assertComparisonIsCorrect(comp, 3, 2, False)
+
+
+class TestAquaApplications(QiskitTestCase):
+    def test_asian_barrier_spread(self):
+        from qiskit.aqua.circuits import WeightedSumOperator, FixedValueComparator as Comparator
+        from qiskit.aqua.components.uncertainty_problems import UnivariatePiecewiseLinearObjective as PwlObjective
+        from qiskit.aqua.components.uncertainty_problems import MultivariateProblem
+        from qiskit.aqua.components.uncertainty_models import MultivariateLogNormalDistribution
+
+        # number of qubits per dimension to represent the uncertainty
+        num_uncertainty_qubits = 2
+
+        # parameters for considered random distribution
+        S = 2.0  # initial spot price
+        vol = 0.4  # volatility of 40%
+        r = 0.05  # annual interest rate of 4%
+        T = 40 / 365  # 40 days to maturity
+
+        # resulting parameters for log-normal distribution
+        mu = ((r - 0.5 * vol**2) * T + np.log(S))
+        sigma = vol * np.sqrt(T)
+        mean = np.exp(mu + sigma**2/2)
+        variance = (np.exp(sigma**2) - 1) * np.exp(2*mu + sigma**2)
+        stddev = np.sqrt(variance)
+
+        # lowest and highest value considered for the spot price; in between, an equidistant discretization is considered.
+        low = np.maximum(0, mean - 3*stddev)
+        high = mean + 3*stddev
+
+        # map to higher dimensional distribution
+        # for simplicity assuming dimensions are independent and identically distributed)
+        dimension = 2
+        num_qubits = [num_uncertainty_qubits]*dimension
+        low = low*np.ones(dimension)
+        high = high*np.ones(dimension)
+        mu = mu*np.ones(dimension)
+        cov = sigma**2*np.eye(dimension)
+
+        # construct circuit factory
+        u = MultivariateLogNormalDistribution(
+            num_qubits=num_qubits, low=low, high=high, mu=mu, cov=cov)
+
+        # determine number of qubits required to represent total loss
+        weights = []
+        for n in num_qubits:
+            for i in range(n):
+                weights += [2**i]
+
+        n_s = WeightedSumOperator.get_required_sum_qubits(weights)
+
+        # create circuit factoy
+        agg = WeightedSumOperator(sum(num_qubits), weights)
+
+        q = QuantumRegister(agg.num_target_qubits)
+        a = QuantumRegister(agg.required_ancillas())
+        circ = QuantumCircuit(q, a)
+        agg.build(circ, q, a)
+
+        # set the strike price (should be within the low and the high value of the uncertainty)
+        strike_price_1 = 3
+        strike_price_2 = 4
+
+        # set the barrier threshold
+        barrier = 2.5
+
+        # map strike prices and barrier threshold from [low, high] to {0, ..., 2^n-1}
+        max_value = 2**n_s - 1
+        low_ = low[0]
+        high_ = high[0]
+
+        mapped_strike_price_1 = (strike_price_1 - dimension*low_) / \
+            (high_ - low_) * (2**num_uncertainty_qubits - 1)
+        mapped_strike_price_2 = (strike_price_2 - dimension*low_) / \
+            (high_ - low_) * (2**num_uncertainty_qubits - 1)
+        mapped_barrier = (barrier - low) / (high - low) * (2**num_uncertainty_qubits - 1)
+
+        conditions = []
+        for i in range(dimension):
+            # target dimension of random distribution and corresponding condition
+            conditions += [(i, Comparator(num_qubits[i], mapped_barrier[i] + 1, geq=False))]
+
+        # set the approximation scaling for the payoff function
+        c_approx = 0.25
+
+        # setup piecewise linear objective fcuntion
+        breakpoints = [0, mapped_strike_price_1, mapped_strike_price_2]
+        slopes = [0, 1, 0]
+        offsets = [0, 0, mapped_strike_price_2 - mapped_strike_price_1]
+        f_min = 0
+        f_max = mapped_strike_price_2 - mapped_strike_price_1
+        bull_spread_objective = PwlObjective(
+            n_s, 0, max_value, breakpoints, slopes, offsets, f_min, f_max, c_approx)
+
+        # define overall multivariate problem
+        asian_barrier_spread = MultivariateProblem(
+            u, agg, bull_spread_objective, conditions=conditions)
+
+        num_req_qubits = asian_barrier_spread.num_target_qubits
+        num_req_ancillas = asian_barrier_spread.required_ancillas()
+
+        q = QuantumRegister(num_req_qubits, name='q')
+        q_a = QuantumRegister(num_req_ancillas, name='q_a')
+        qc = QuantumCircuit(q, q_a)
+
+        asian_barrier_spread.build(qc, q, q_a)
+        job = execute(qc, backend=BasicAer.get_backend('statevector_simulator'))
+
+        # evaluate resulting statevector
+        value = 0
+        for i, a in enumerate(job.result().get_statevector()):
+            b = ('{0:0%sb}' % asian_barrier_spread.num_target_qubits).format(
+                i)[-asian_barrier_spread.num_target_qubits:]
+            prob = np.abs(a)**2
+            if prob > 1e-4 and b[0] == '1':
+                value += prob
+                # all other states should have zero probability due to ancilla qubits
+                if i > 2**num_req_qubits:
+                    break
+
+        # map value to original range
+        mapped_value = asian_barrier_spread.value_to_estimation(
+            value) / (2**num_uncertainty_qubits - 1) * (high_ - low_)
+        expected = 0.83188
+        self.assertAlmostEqual(mapped_value, expected, places=5)
