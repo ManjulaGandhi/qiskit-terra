@@ -15,7 +15,7 @@
 """The arithmetic circuit library."""
 
 from .fixed_value_comparator import FixedValueComparator
-from .linear_rotation import LinearRotation
-from .piecewise_linear_rotation import PiecewiseLinearRotation
-from .polynomial_rotation import PolynomialRotation
-from .weighted_sum_operator import WeightedSumOperator
+from .linear_pauli_rotations import LinearPauliRotations
+from .piecewise_linear_pauli_rotations import PiecewiseLinearPauliRotations
+from .polynomial_pauli_rotations import PolynomialPauliRotations
+from .weighted_adder import WeightedAdder
