@@ -2,7 +2,7 @@
 
 # This code is part of Qiskit.
 #
-# (C) Copyright IBM 2020.
+# (C) Copyright IBM 2017, 2020.
 #
 # This code is licensed under the Apache License, Version 2.0. You may
 # obtain a copy of this license in the LICENSE.txt file in the root directory
@@ -14,8 +14,9 @@
 
 """Test library of quantum circuits."""
 
-import numpy as np
+from collections import defaultdict
 from ddt import ddt, data, unpack
+import numpy as np
 
 from qiskit.test.base import QiskitTestCase
 from qiskit import BasicAer, execute
@@ -59,120 +60,87 @@ class TestBooleanLogicLibrary(QiskitTestCase):
 
 
 @ddt
-class TestLinearRotation(QiskitTestCase):
-    """Test the arithmetic circuits."""
+class TestFunctionalPauliRotations(QiskitTestCase):
+    """Test the functional Pauli rotations."""
 
-    def test_linear_function(self):
-        """Test the linear rotation arithmetic circuit."""
-        slope, offset = 0.1, 0
-        num_state_qubits = 2
-        linear_rotation = LinearPauliRotations(num_state_qubits + 1, slope * 2, offset * 2)
-        circuit = QuantumCircuit(num_state_qubits + 1)
+    def assertFunctionIsCorrect(self, function_circuit, reference, num_state_qubits,
+                                num_ancilla_qubits=0):
+        """Assert that ``function_circuit`` implements the reference function ``reference``."""
+        circuit = QuantumCircuit(num_state_qubits + 1 + num_ancilla_qubits)
         circuit.h(list(range(num_state_qubits)))
-        circuit.append(linear_rotation.to_instruction(), list(range(num_state_qubits + 1)))
+        circuit.append(function_circuit.to_instruction(), list(range(circuit.num_qubits)))
 
         backend = BasicAer.get_backend('statevector_simulator')
         statevector = execute(circuit, backend).result().get_statevector()
 
-        for i, amplitude in enumerate(statevector):
-            i = bin(i)[2:].zfill(num_state_qubits + 1)
+        probabilities = defaultdict(float)
+        for i, statevector_amplitude in enumerate(statevector):
+            i = bin(i)[2:].zfill(circuit.num_qubits)[num_ancilla_qubits:]
+            probabilities[i] += np.real(np.abs(statevector_amplitude) ** 2)
+
+        for i, probability in probabilities.items():
             x, last_qubit = int(i[1:], 2), i[0]
             if last_qubit == '0':
-                expected = np.cos(slope * x + offset) / np.sqrt(2**num_state_qubits)
+                expected_amplitude = np.cos(reference(x)) / np.sqrt(2**num_state_qubits)
             else:
-                expected = np.sin(slope * x + offset) / np.sqrt(2**num_state_qubits)
+                expected_amplitude = np.sin(reference(x)) / np.sqrt(2**num_state_qubits)
 
             with self.subTest(x=x, last_qubit=last_qubit):
-                self.assertAlmostEqual(amplitude.real, expected)
-                self.assertAlmostEqual(amplitude.imag, 0)
+                self.assertAlmostEqual(probability, np.real(np.abs(expected_amplitude) ** 2))
 
-
-@ddt
-class TestPolynomialRotation(QiskitTestCase):
-    """Test the arithmetic circuits."""
     @data(
         ([1, 0.1], 3),
         ([0, 0.4, 2], 2),
     )
     @unpack
-    def test_polynomes(self, coeffs, num_state_qubits):
+    def test_polynomial_function(self, coeffs, num_state_qubits):
         """Test the polynomial rotation."""
-        polynome = PolynomialPauliRotations(num_state_qubits, coeffs)
-        circuit = QuantumCircuit(num_state_qubits + 1 + polynome.num_ancillas)
-        circuit.h(list(range(num_state_qubits)))
-        circuit.append(polynome.to_instruction(), list(range(circuit.num_qubits)))
-
-        backend = BasicAer.get_backend('statevector_simulator')
-        statevector = execute(circuit, backend).result().get_statevector()
-
         def poly(x):
             res = sum(coeff * x**i for i, coeff in enumerate(coeffs))
             return res
 
-        amplitudes = {}
-        for i, statevector_amplitude in enumerate(statevector):
-            i = bin(i)[2:].zfill(circuit.num_qubits)[polynome.num_ancillas:]
-            amplitudes[i] = amplitudes.get(i, 0) + statevector_amplitude
+        polynome = PolynomialPauliRotations(num_state_qubits, coeffs)
+        self.assertFunctionIsCorrect(polynome, poly, num_state_qubits, polynome.num_ancilla_qubits)
 
-        for i, amplitude in amplitudes.items():
-            x, last_qubit = int(i[1:], 2), i[0]
-            if last_qubit == '0':
-                expected = np.cos(poly(x)) / np.sqrt(2**num_state_qubits)
-            else:
-                expected = np.sin(poly(x)) / np.sqrt(2**num_state_qubits)
+    @data(
+        (2, 0.1, 0),
+        (4, -2, 2),
+        (1, 0, 0)
+    )
+    @unpack
+    def test_linear_function(self, num_state_qubits, slope, offset):
+        """Test the linear rotation arithmetic circuit."""
+        def linear(x):
+            return offset + slope * x
 
-            with self.subTest(x=x, last_qubit=last_qubit):
-                self.assertAlmostEqual(amplitude.real, expected)
-                self.assertAlmostEqual(amplitude.imag, 0)
+        linear_rotation = LinearPauliRotations(num_state_qubits + 1, slope * 2, offset * 2)
+        self.assertFunctionIsCorrect(linear_rotation, linear, num_state_qubits)
 
-
-@ddt
-class TestPiecewiseLinearRotation(QiskitTestCase):
-    """Test the arithmetic circuits."""
     @data(
         (2, [0, 2], [-0.5, 1], [2, 1]),
         (3, [0, 2, 5], [1, 0, -1], [0, 2, 2]),
         (2, [1, 2], [1, -1], [2, 1]),
+        (3, [0, 1], [1, 0], [0, 1])
     )
     @unpack
-    def test_piecewise_linear(self, num_state_qubits, breakpoints, slopes, offsets):
+    def test_piecewise_linear_function(self, num_state_qubits, breakpoints, slopes, offsets):
         """Test the piecewise linear rotations."""
-        c = 0.1
-        pw_linear_function = PiecewiseLinearPauliRotations(num_state_qubits, breakpoints,
-                                                           [2 * c * slope for slope in slopes],
-                                                           [2 * c * offset for offset in offsets])
-
-        def reference(x):
+        def pw_linear(x):
             for i, point in enumerate(reversed(breakpoints)):
                 # for i, point in enumerate(breakpoints + [2**num_state_qubits]):
-                print('x:', x, 'point:', point)
                 if x >= point:
-                    print('using', offsets[-(i + 1)], slopes[-(i + 1)])
-                    return c * offsets[-(i + 1)] + c * slopes[-(i + 1)] * (x - point)
+                    return offsets[-(i + 1)] + slopes[-(i + 1)] * (x - point)
             return 0
 
-        circuit = QuantumCircuit(num_state_qubits + 1 + pw_linear_function.num_ancillas)
-        circuit.h(list(range(num_state_qubits)))
-        circuit.append(pw_linear_function.to_gate(), list(range(circuit.num_qubits)))
+        pw_linear_rotations = PiecewiseLinearPauliRotations(num_state_qubits, breakpoints,
+                                                            [2 * slope for slope in slopes],
+                                                            [2 * offset for offset in offsets])
 
-        backend = BasicAer.get_backend('statevector_simulator')
-        statevector = execute(circuit, backend).result().get_statevector()
+        self.assertFunctionIsCorrect(pw_linear_rotations, pw_linear, num_state_qubits,
+                                     pw_linear_rotations.num_ancilla_qubits)
 
-        amplitudes = {}
-        for i, statevector_amplitude in enumerate(statevector):
-            i = bin(i)[2:].zfill(circuit.num_qubits)[pw_linear_function.num_ancillas:]
-            amplitudes[i] = amplitudes.get(i, 0) + statevector_amplitude
+    # def test_linear_rotations_mutability(self):
 
-        for i, amplitude in amplitudes.items():
-            x, last_qubit = int(i[1:], 2), i[0]
-            if last_qubit == '0':
-                expected = np.cos(reference(x)) / np.sqrt(2**num_state_qubits)
-            else:
-                expected = np.sin(reference(x)) / np.sqrt(2**num_state_qubits)
-
-            with self.subTest(x=x, last_qubit=last_qubit):
-                self.assertAlmostEqual(amplitude.real, expected)
-                self.assertAlmostEqual(amplitude.imag, 0)
 
 
 @ddt
@@ -251,29 +219,35 @@ class TestFixedValueComparator(QiskitTestCase):
 
 
 class TestAquaApplications(QiskitTestCase):
+    """Test applications of the arithmetic library in Aqua use-cases."""
+
     def test_asian_barrier_spread(self):
+        """Test the asian barrier spread model."""
         from qiskit.aqua.circuits import WeightedSumOperator, FixedValueComparator as Comparator
-        from qiskit.aqua.components.uncertainty_problems import UnivariatePiecewiseLinearObjective as PwlObjective
-        from qiskit.aqua.components.uncertainty_problems import MultivariateProblem
+        from qiskit.aqua.components.uncertainty_problems import (
+            UnivariatePiecewiseLinearObjective as PwlObjective,
+            MultivariateProblem
+        )
         from qiskit.aqua.components.uncertainty_models import MultivariateLogNormalDistribution
 
         # number of qubits per dimension to represent the uncertainty
         num_uncertainty_qubits = 2
 
         # parameters for considered random distribution
-        S = 2.0  # initial spot price
-        vol = 0.4  # volatility of 40%
-        r = 0.05  # annual interest rate of 4%
-        T = 40 / 365  # 40 days to maturity
+        spot_price = 2.0  # initial spot price
+        volatility = 0.4  # volatility of 40%
+        interest_rate = 0.05  # annual interest rate of 5%
+        time_to_maturity = 40 / 365  # 40 days to maturity
 
         # resulting parameters for log-normal distribution
-        mu = ((r - 0.5 * vol**2) * T + np.log(S))
-        sigma = vol * np.sqrt(T)
+        mu = ((interest_rate - 0.5 * volatility**2) * time_to_maturity + np.log(spot_price))
+        sigma = volatility * np.sqrt(time_to_maturity)
         mean = np.exp(mu + sigma**2/2)
         variance = (np.exp(sigma**2) - 1) * np.exp(2*mu + sigma**2)
         stddev = np.sqrt(variance)
 
-        # lowest and highest value considered for the spot price; in between, an equidistant discretization is considered.
+        # lowest and highest value considered for the spot price; in between,
+        # an equidistant discretization is considered.
         low = np.maximum(0, mean - 3*stddev)
         high = mean + 3*stddev
 
@@ -281,14 +255,17 @@ class TestAquaApplications(QiskitTestCase):
         # for simplicity assuming dimensions are independent and identically distributed)
         dimension = 2
         num_qubits = [num_uncertainty_qubits]*dimension
-        low = low*np.ones(dimension)
-        high = high*np.ones(dimension)
-        mu = mu*np.ones(dimension)
-        cov = sigma**2*np.eye(dimension)
+        low = low * np.ones(dimension)
+        high = high * np.ones(dimension)
+        mu = mu * np.ones(dimension)
+        cov = sigma ** 2 * np.eye(dimension)
 
         # construct circuit factory
-        u = MultivariateLogNormalDistribution(
-            num_qubits=num_qubits, low=low, high=high, mu=mu, cov=cov)
+        distribution = MultivariateLogNormalDistribution(num_qubits=num_qubits,
+                                                         low=low,
+                                                         high=high,
+                                                         mu=mu,
+                                                         cov=cov)
 
         # determine number of qubits required to represent total loss
         weights = []
@@ -296,15 +273,10 @@ class TestAquaApplications(QiskitTestCase):
             for i in range(n):
                 weights += [2**i]
 
-        n_s = WeightedSumOperator.get_required_sum_qubits(weights)
+        num_sum_qubits = WeightedSumOperator.get_required_sum_qubits(weights)
 
         # create circuit factoy
         agg = WeightedSumOperator(sum(num_qubits), weights)
-
-        q = QuantumRegister(agg.num_target_qubits)
-        a = QuantumRegister(agg.required_ancillas())
-        circ = QuantumCircuit(q, a)
-        agg.build(circ, q, a)
 
         # set the strike price (should be within the low and the high value of the uncertainty)
         strike_price_1 = 3
@@ -314,7 +286,7 @@ class TestAquaApplications(QiskitTestCase):
         barrier = 2.5
 
         # map strike prices and barrier threshold from [low, high] to {0, ..., 2^n-1}
-        max_value = 2**n_s - 1
+        max_value = 2**num_sum_qubits - 1
         low_ = low[0]
         high_ = high[0]
 
@@ -339,28 +311,28 @@ class TestAquaApplications(QiskitTestCase):
         f_min = 0
         f_max = mapped_strike_price_2 - mapped_strike_price_1
         bull_spread_objective = PwlObjective(
-            n_s, 0, max_value, breakpoints, slopes, offsets, f_min, f_max, c_approx)
+            num_sum_qubits, 0, max_value, breakpoints, slopes, offsets, f_min, f_max, c_approx)
 
         # define overall multivariate problem
         asian_barrier_spread = MultivariateProblem(
-            u, agg, bull_spread_objective, conditions=conditions)
+            distribution, agg, bull_spread_objective, conditions=conditions)
 
         num_req_qubits = asian_barrier_spread.num_target_qubits
         num_req_ancillas = asian_barrier_spread.required_ancillas()
 
-        q = QuantumRegister(num_req_qubits, name='q')
-        q_a = QuantumRegister(num_req_ancillas, name='q_a')
-        qc = QuantumCircuit(q, q_a)
+        qr = QuantumRegister(num_req_qubits, name='q')
+        qr_ancilla = QuantumRegister(num_req_ancillas, name='q_a')
+        qc = QuantumCircuit(qr, qr_ancilla)
 
-        asian_barrier_spread.build(qc, q, q_a)
+        asian_barrier_spread.build(qc, qr, qr_ancilla)
         job = execute(qc, backend=BasicAer.get_backend('statevector_simulator'))
 
         # evaluate resulting statevector
         value = 0
-        for i, a in enumerate(job.result().get_statevector()):
+        for i, amplitude in enumerate(job.result().get_statevector()):
             b = ('{0:0%sb}' % asian_barrier_spread.num_target_qubits).format(
                 i)[-asian_barrier_spread.num_target_qubits:]
-            prob = np.abs(a)**2
+            prob = np.abs(amplitude)**2
             if prob > 1e-4 and b[0] == '1':
                 value += prob
                 # all other states should have zero probability due to ancilla qubits

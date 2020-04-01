@@ -76,13 +76,13 @@ class PolynomialPauliRotations(QuantumCircuit):
 
         qr_state = QuantumRegister(num_state_qubits)
         qr_target = QuantumRegister(1)
-        qr_ancilla = QuantumRegister(self.num_ancillas)  # based on self.degree
+        qr_ancilla = QuantumRegister(self.num_ancilla_qubits)  # based on self.degree
         super().__init__(qr_state, qr_target, qr_ancilla)
 
         self._build(qr_state, qr_target, qr_ancilla)
 
     @property
-    def num_ancillas(self) -> int:
+    def num_ancilla_qubits(self) -> int:
         """The number of ancilla qubits in this circuit.
 
         Returns:
@@ -91,7 +91,7 @@ class PolynomialPauliRotations(QuantumCircuit):
         return max(1, self.degree - 1)
 
     @property
-    def num_ancillas_controlled(self):
+    def num_ancilla_qubits_controlled(self):
         return max(1, self.degree)
 
     def _get_controls(self):

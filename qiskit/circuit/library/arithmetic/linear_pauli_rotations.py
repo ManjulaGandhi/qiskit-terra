@@ -15,7 +15,6 @@
 """Linearly-controlled X, Y or Z rotation."""
 
 from typing import Optional, List, Tuple
-import numpy as np
 
 from qiskit.circuit import QuantumCircuit, QuantumRegister, Qubit, Clbit, Instruction
 
@@ -193,20 +192,17 @@ class LinearPauliRotations(QuantumCircuit):
 
         qr_state, qr_target = self.qubits[:-1], self.qubits[-1]
 
-        if not np.isclose(self.offset / 4 / np.pi % 1, 0):
-            if self.basis == 'x':
-                self.rx(self.offset, qr_target)
-            elif self.basis == 'y':
-                self.ry(self.offset, qr_target)
-            else:  # 'Z':
-                self.rz(self.offset, qr_target)
+        if self.basis == 'x':
+            self.rx(self.offset, qr_target)
+        elif self.basis == 'y':
+            self.ry(self.offset, qr_target)
+        else:  # 'Z':
+            self.rz(self.offset, qr_target)
 
         for i, q_i in enumerate(qr_state):
-            theta = self.slope * pow(2, i)
-            if not np.isclose(theta / 4 / np.pi % 1, 0):
-                if self.basis == 'x':
-                    self.crx(self.slope * pow(2, i), q_i, qr_target)
-                elif self.basis == 'y':
-                    self.cry(self.slope * pow(2, i), q_i, qr_target)
-                else:  # 'Z'
-                    self.crz(self.slope * pow(2, i), q_i, qr_target)
+            if self.basis == 'x':
+                self.crx(self.slope * pow(2, i), q_i, qr_target)
+            elif self.basis == 'y':
+                self.cry(self.slope * pow(2, i), q_i, qr_target)
+            else:  # 'Z'
+                self.crz(self.slope * pow(2, i), q_i, qr_target)

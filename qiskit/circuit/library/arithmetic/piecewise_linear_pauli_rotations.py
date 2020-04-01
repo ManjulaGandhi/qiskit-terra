@@ -76,7 +76,7 @@ class PiecewiseLinearPauliRotations(QuantumCircuit):
 
         qr_state = QuantumRegister(num_state_qubits)
         qr_target = QuantumRegister(1)
-        qr_ancilla = QuantumRegister(self.num_ancillas)
+        qr_ancilla = QuantumRegister(self.num_ancilla_qubits)
 
         super().__init__(qr_state, qr_target, qr_ancilla)
 
@@ -100,16 +100,16 @@ class PiecewiseLinearPauliRotations(QuantumCircuit):
         return y
 
     @property
-    def num_ancillas(self) -> int:
+    def num_ancilla_qubits(self) -> int:
         """The number of ancilla qubits.
 
         Returns:
             The number of ancilla qubits in the circuit.
         """
-        num_ancillas = self.num_state_qubits - 1 + len(self.breakpoints)
+        num_ancilla_qubits = self.num_state_qubits - 1 + len(self.breakpoints)
         if self.contains_zero_breakpoint:
-            num_ancillas -= 1
-        return num_ancillas
+            num_ancilla_qubits -= 1
+        return num_ancilla_qubits
 
     def _build(self, qr_state, qr_target, qr_ancilla):
         # apply comparators and controlled linear rotations
