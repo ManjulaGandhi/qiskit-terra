@@ -206,21 +206,22 @@ class TestFunctionalPauliRotations(QiskitTestCase):
             pw_linear_rotations.breakpoints = [0, 2]
             pw_linear_rotations.slopes = [-1 * 2, 1 * 2]
             pw_linear_rotations.offsets = [0, -1.2 * 2]
-            self.assertFunctionIsCorrect(pw_linear_rotations, lambda x: -1.2 if x >= 2 else -x)
+            self.assertFunctionIsCorrect(pw_linear_rotations,
+                                         lambda x: -1.2 + (x - 2) if x >= 2 else -x)
 
         with self.subTest(msg='changing all values'):
             pw_linear_rotations.num_state_qubits = 4
             pw_linear_rotations.breakpoints = [1, 3, 6]
-            pw_linear_rotations.slopes = [-1, 1, -0.2]
-            pw_linear_rotations.offsets = [0, -1.2, 2]
+            pw_linear_rotations.slopes = [-1 * 2, 1 * 2, -0.2 * 2]
+            pw_linear_rotations.offsets = [0, -1.2 * 2, 2 * 2]
 
             def pw_linear(x):
                 if x >= 6:
-                    return 2 - 0.2 * x
+                    return 2 - 0.2 * (x - 6)
                 if x >= 3:
-                    return -1.2 + x
+                    return -1.2 + (x - 3)
                 if x >= 1:
-                    return -x
+                    return -(x - 1)
                 return 0
 
             self.assertFunctionIsCorrect(pw_linear_rotations, pw_linear)

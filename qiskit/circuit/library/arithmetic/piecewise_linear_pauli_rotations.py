@@ -62,27 +62,71 @@ class PiecewiseLinearPauliRotations(FunctionalPauliRotations):
             name: The name of the circuit.
         """
         # store parameters
-        self.breakpoints = breakpoints if breakpoints is not None else [0]
-        self.slopes = slopes if slopes is not None else [1]
-        self.offsets = offsets if offsets is not None else [0]
+        self._breakpoints = breakpoints if breakpoints is not None else [0]
+        self._slopes = slopes if slopes is not None else [1]
+        self._offsets = offsets if offsets is not None else [0]
 
         super().__init__(num_state_qubits=num_state_qubits, basis=basis, name=name)
 
-        # map slopes and offsets
-        # self.mapped_slopes[0] = self.slopes[0]
-        # self.mapped_offsets[0] = self.offsets[0] - self.slopes[0] * self.breakpoints[0]
-        # sum_mapped_slopes = 0
-        # sum_mapped_offsets = 0
-        # for i in range(1, len(breakpoints)):
-        #     sum_mapped_slopes += self.mapped_slopes[i - 1]
-        #     sum_mapped_offsets += self.mapped_offsets[i - 1]
+    @property
+    def breakpoints(self) -> List[int]:
+        """The breakpoints of the piecewise linear function.
 
-        #     self.mapped_slopes[i] = self.slopes[i] - sum_mapped_slopes
-        #     self.mapped_offsets[i] = \
-        #         self.offsets[i] - self.slopes[i] * self.breakpoints[i] - sum_mapped_offsets
+        The function is linear in the intervals ``[point_i, point_{i+1}]`` where the last
+        point implicitely is ``2**(num_state_qubits + 1)``.
+        """
+        return self._breakpoints
 
-        # # check whether 0 is contained in breakpoints
-        # self.contains_zero_breakpoint = np.isclose(0, self.breakpoints[0])
+    @breakpoints.setter
+    def breakpoints(self, breakpoints: List[int]) -> None:
+        """Set the breakpoints.
+
+        Args:
+            breakpoints: The new breakpoints.
+        """
+        self._breakpoints = breakpoints
+        self._data = None
+
+        if self.num_state_qubits and breakpoints:
+            self._reset_registers(self.num_state_qubits)
+
+    @property
+    def slopes(self) -> List[int]:
+        """The breakpoints of the piecewise linear function.
+
+        The function is linear in the intervals ``[point_i, point_{i+1}]`` where the last
+        point implicitely is ``2**(num_state_qubits + 1)``.
+        """
+        return self._slopes
+
+    @slopes.setter
+    def slopes(self, slopes: List[float]) -> None:
+        """Set the slopes.
+
+        Args:
+            slopes: The new slopes.
+        """
+        self._slopes = slopes
+        self._data = None
+
+    @property
+    def offsets(self) -> List[float]:
+        """The breakpoints of the piecewise linear function.
+
+        The function is linear in the intervals ``[point_i, point_{i+1}]`` where the last
+        point implicitely is ``2**(num_state_qubits + 1)``.
+        """
+        return self._offsets
+
+    @offsets.setter
+    def offsets(self, offsets: List[float]) -> None:
+        """Set the offsets.
+
+        Args:
+            offsets: The new offsets.
+        """
+        self._offsets = offsets
+        self._data = None
 
     @property
     def mapped_slopes(self) -> List[float]:
@@ -163,6 +207,11 @@ class PiecewiseLinearPauliRotations(FunctionalPauliRotations):
             if raise_on_failure:
                 raise CircuitError('Not enough qubits in the circuit, need at least '
                                    '{}.'.format(self.num_state_qubits + 1))
+
+        if len(self.breakpoints) != len(self.slopes) or len(self.breakpoints) != len(self.offsets):
+            valid = False
+            if raise_on_failure:
+                raise ValueError('Mismatching sizes of breakpoints, slopes and offsets.')
 
         return valid
 
