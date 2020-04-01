@@ -104,7 +104,7 @@ class TestFunctionalPauliRotations(QiskitTestCase):
             res = sum(coeff * x**i for i, coeff in enumerate(coeffs))
             return res
 
-        polynome = PolynomialPauliRotations(num_state_qubits, coeffs)
+        polynome = PolynomialPauliRotations(num_state_qubits, [2 * coeff for coeff in coeffs])
         self.assertFunctionIsCorrect(polynome, poly)
 
     def test_polynomial_rotations_mutability(self):
@@ -118,15 +118,15 @@ class TestFunctionalPauliRotations(QiskitTestCase):
 
         with self.subTest(msg='default setup, just setting number of state qubits'):
             polynomial_rotations.num_state_qubits = 2
-            self.assertFunctionIsCorrect(polynomial_rotations, lambda x: x)
+            self.assertFunctionIsCorrect(polynomial_rotations, lambda x: x / 2)
 
         with self.subTest(msg='setting non-default values'):
-            polynomial_rotations.coeffs = [0, 1.2, 0.4]
+            polynomial_rotations.coeffs = [0, 1.2 * 2, 0.4 * 2]
             self.assertFunctionIsCorrect(polynomial_rotations, lambda x: 1.2 * x + 0.4 * x ** 2)
 
         with self.subTest(msg='changing of all values'):
             polynomial_rotations.num_state_qubits = 4
-            polynomial_rotations.coeffs = [1, 0, 0, -0.5]
+            polynomial_rotations.coeffs = [1 * 2, 0, 0, -0.5 * 2]
             self.assertFunctionIsCorrect(polynomial_rotations, lambda x: 1 - 0.5 * x**3)
 
     @data(
@@ -324,6 +324,7 @@ class TestAquaApplications(QiskitTestCase):
         time_to_maturity = 40 / 365  # 40 days to maturity
 
         # resulting parameters for log-normal distribution
+        # pylint: disable=invalid-name
         mu = ((interest_rate - 0.5 * volatility**2) * time_to_maturity + np.log(spot_price))
         sigma = volatility * np.sqrt(time_to_maturity)
         mean = np.exp(mu + sigma**2/2)

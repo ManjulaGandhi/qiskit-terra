@@ -154,15 +154,11 @@ class PolynomialPauliRotations(FunctionalPauliRotations):
     def _configuration_is_valid(self, raise_on_failure: bool = True) -> bool:
         valid = True
 
-        print('checking num state qubits')
         if self.num_state_qubits is None:
-            print('is none, should raise')
             valid = False
             if raise_on_failure:
-                print('raising')
                 raise AttributeError('The number of qubits has not been set.')
 
-        print('checking num qubits')
         if self.num_qubits < self.num_state_qubits + 1:
             valid = False
             if raise_on_failure:
@@ -223,11 +219,11 @@ class PolynomialPauliRotations(FunctionalPauliRotations):
         rotation_coeffs = self._get_rotation_coefficients()
 
         if self.basis == 'x':
-            self.rx(2 * self.coeffs[0], qr_target)
+            self.rx(self.coeffs[0], qr_target)
         elif self.basis == 'y':
-            self.ry(2 * self.coeffs[0], qr_target)
+            self.ry(self.coeffs[0], qr_target)
         else:
-            self.rz(2 * self.coeffs[0], qr_target)
+            self.rz(self.coeffs[0], qr_target)
 
         for c in rotation_coeffs:
             qr_control = []
@@ -243,16 +239,16 @@ class PolynomialPauliRotations(FunctionalPauliRotations):
             # apply controlled rotations
             if len(qr_control) > 1:
                 if self.basis == 'x':
-                    self.mcrx(2 * rotation_coeffs[c], qr_control, qr_target, qr_ancilla)
+                    self.mcrx(rotation_coeffs[c], qr_control, qr_target, qr_ancilla)
                 elif self.basis == 'y':
-                    self.mcry(2 * rotation_coeffs[c], qr_control, qr_target, qr_ancilla)
+                    self.mcry(rotation_coeffs[c], qr_control, qr_target, qr_ancilla)
                 else:
-                    self.mcrz(2 * rotation_coeffs[c], qr_control, qr_target, qr_ancilla)
+                    self.mcrz(rotation_coeffs[c], qr_control, qr_target, qr_ancilla)
 
             elif len(qr_control) == 1:
                 if self.basis == 'x':
-                    self.u3(2 * rotation_coeffs[c], -np.pi / 2, np.pi / 2, qr_control[0], qr_target)
+                    self.u3(rotation_coeffs[c], -np.pi / 2, np.pi / 2, qr_control[0], qr_target)
                 elif self.basis == 'y':
-                    self.cry(2 * rotation_coeffs[c], qr_control[0], qr_target)
+                    self.cry(rotation_coeffs[c], qr_control[0], qr_target)
                 else:
-                    self.crz(2 * rotation_coeffs[c], qr_control[0], qr_target)
+                    self.crz(rotation_coeffs[c], qr_control[0], qr_target)
