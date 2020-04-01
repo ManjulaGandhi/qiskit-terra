@@ -18,6 +18,7 @@ from typing import List, Optional
 import numpy as np
 
 from qiskit.circuit import QuantumRegister
+from qiskit.circuit.exceptions import CircuitError
 
 from .funtional_pauli_rotations import FunctionalPauliRotations
 from .linear_pauli_rotations import LinearPauliRotations
@@ -150,7 +151,20 @@ class PiecewiseLinearPauliRotations(FunctionalPauliRotations):
         return num_ancilla_qubits
 
     def _configuration_is_valid(self, raise_on_failure: bool = True) -> bool:
-        return True
+        valid = True
+
+        if self.num_state_qubits is None:
+            valid = False
+            if raise_on_failure:
+                raise AttributeError('The number of qubits has not been set.')
+
+        if self.num_qubits < self.num_state_qubits + 1:
+            valid = False
+            if raise_on_failure:
+                raise CircuitError('Not enough qubits in the circuit, need at least '
+                                   '{}.'.format(self.num_state_qubits + 1))
+
+        return valid
 
     def _reset_registers(self, num_state_qubits: Optional[int]) -> None:
         if num_state_qubits:

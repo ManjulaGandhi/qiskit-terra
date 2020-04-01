@@ -63,9 +63,10 @@ class TestBooleanLogicLibrary(QiskitTestCase):
 class TestFunctionalPauliRotations(QiskitTestCase):
     """Test the functional Pauli rotations."""
 
-    def assertFunctionIsCorrect(self, function_circuit, reference, num_state_qubits,
-                                num_ancilla_qubits=0):
+    def assertFunctionIsCorrect(self, function_circuit, reference):
         """Assert that ``function_circuit`` implements the reference function ``reference``."""
+        num_state_qubits = function_circuit.num_state_qubits
+        num_ancilla_qubits = function_circuit.num_ancilla_qubits
         circuit = QuantumCircuit(num_state_qubits + 1 + num_ancilla_qubits)
         circuit.h(list(range(num_state_qubits)))
         circuit.append(function_circuit.to_instruction(), list(range(circuit.num_qubits)))
@@ -104,7 +105,29 @@ class TestFunctionalPauliRotations(QiskitTestCase):
             return res
 
         polynome = PolynomialPauliRotations(num_state_qubits, coeffs)
-        self.assertFunctionIsCorrect(polynome, poly, num_state_qubits, polynome.num_ancilla_qubits)
+        self.assertFunctionIsCorrect(polynome, poly)
+
+    def test_polynomial_rotations_mutability(self):
+        """Test the mutability of the linear rotations circuit."""
+
+        polynomial_rotations = PolynomialPauliRotations()
+
+        with self.subTest(msg='missing number of state qubits'):
+            with self.assertRaises(AttributeError):  # no state qubits set
+                print(polynomial_rotations.draw())
+
+        with self.subTest(msg='default setup, just setting number of state qubits'):
+            polynomial_rotations.num_state_qubits = 2
+            self.assertFunctionIsCorrect(polynomial_rotations, lambda x: x)
+
+        with self.subTest(msg='setting non-default values'):
+            polynomial_rotations.coeffs = [0, 1.2, 0.4]
+            self.assertFunctionIsCorrect(polynomial_rotations, lambda x: 1.2 * x + 0.4 * x ** 2)
+
+        with self.subTest(msg='changing of all values'):
+            polynomial_rotations.num_state_qubits = 4
+            polynomial_rotations.coeffs = [1, 0, 0, -0.5]
+            self.assertFunctionIsCorrect(polynomial_rotations, lambda x: 1 - 0.5 * x**3)
 
     @data(
         (2, 0.1, 0),
@@ -118,7 +141,7 @@ class TestFunctionalPauliRotations(QiskitTestCase):
             return offset + slope * x
 
         linear_rotation = LinearPauliRotations(num_state_qubits, slope * 2, offset * 2)
-        self.assertFunctionIsCorrect(linear_rotation, linear, num_state_qubits)
+        self.assertFunctionIsCorrect(linear_rotation, linear)
 
     def test_linear_rotations_mutability(self):
         """Test the mutability of the linear rotations circuit."""
@@ -131,18 +154,18 @@ class TestFunctionalPauliRotations(QiskitTestCase):
 
         with self.subTest(msg='default setup, just setting number of state qubits'):
             linear_rotation.num_state_qubits = 2
-            self.assertFunctionIsCorrect(linear_rotation, lambda x: x / 2, 2)
+            self.assertFunctionIsCorrect(linear_rotation, lambda x: x / 2)
 
         with self.subTest(msg='setting non-default values'):
             linear_rotation.slope = -2.3 * 2
             linear_rotation.offset = 1 * 2
-            self.assertFunctionIsCorrect(linear_rotation, lambda x: 1 - 2.3 * x, 2)
+            self.assertFunctionIsCorrect(linear_rotation, lambda x: 1 - 2.3 * x)
 
-        with self.subTest(msg='changing of all values'):
+        with self.subTest(msg='changing all values'):
             linear_rotation.num_state_qubits = 4
             linear_rotation.slope = 0.2 * 2
             linear_rotation.offset = 0.1 * 2
-            self.assertFunctionIsCorrect(linear_rotation, lambda x: 0.1 + 0.2 * x, 4)
+            self.assertFunctionIsCorrect(linear_rotation, lambda x: 0.1 + 0.2 * x)
 
     @data(
         (1, [0], [1], [0]),
@@ -156,7 +179,6 @@ class TestFunctionalPauliRotations(QiskitTestCase):
         """Test the piecewise linear rotations."""
         def pw_linear(x):
             for i, point in enumerate(reversed(breakpoints)):
-                # for i, point in enumerate(breakpoints + [2**num_state_qubits]):
                 if x >= point:
                     return offsets[-(i + 1)] + slopes[-(i + 1)] * (x - point)
             return 0
@@ -165,8 +187,43 @@ class TestFunctionalPauliRotations(QiskitTestCase):
                                                             [2 * slope for slope in slopes],
                                                             [2 * offset for offset in offsets])
 
-        self.assertFunctionIsCorrect(pw_linear_rotations, pw_linear, num_state_qubits,
-                                     pw_linear_rotations.num_ancilla_qubits)
+        self.assertFunctionIsCorrect(pw_linear_rotations, pw_linear)
+
+    def test_piecewise_linear_rotations_mutability(self):
+        """Test the mutability of the linear rotations circuit."""
+
+        pw_linear_rotations = PiecewiseLinearPauliRotations()
+
+        with self.subTest(msg='missing number of state qubits'):
+            with self.assertRaises(AttributeError):  # no state qubits set
+                print(pw_linear_rotations.draw())
+
+        with self.subTest(msg='default setup, just setting number of state qubits'):
+            pw_linear_rotations.num_state_qubits = 2
+            self.assertFunctionIsCorrect(pw_linear_rotations, lambda x: x / 2)
+
+        with self.subTest(msg='setting non-default values'):
+            pw_linear_rotations.breakpoints = [0, 2]
+            pw_linear_rotations.slopes = [-1 * 2, 1 * 2]
+            pw_linear_rotations.offsets = [0, -1.2 * 2]
+            self.assertFunctionIsCorrect(pw_linear_rotations, lambda x: -1.2 if x >= 2 else -x)
+
+        with self.subTest(msg='changing all values'):
+            pw_linear_rotations.num_state_qubits = 4
+            pw_linear_rotations.breakpoints = [1, 3, 6]
+            pw_linear_rotations.slopes = [-1, 1, -0.2]
+            pw_linear_rotations.offsets = [0, -1.2, 2]
+
+            def pw_linear(x):
+                if x >= 6:
+                    return 2 - 0.2 * x
+                if x >= 3:
+                    return -1.2 + x
+                if x >= 1:
+                    return -x
+                return 0
+
+            self.assertFunctionIsCorrect(pw_linear_rotations, pw_linear)
 
 
 @ddt

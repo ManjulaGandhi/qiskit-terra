@@ -94,12 +94,12 @@ class PolynomialPauliRotations(FunctionalPauliRotations):
         Args:
             The slope of the rotation angles.
         """
-        # the number of ancilla's depends on the number of coefficients, so update if necessary
-        if coeffs and self.num_state_qubits and len(coeffs) != len(self._coeffs):
-            self._reset_registers(self.num_state_qubits)
-
         self._coeffs = coeffs
         self._data = None
+
+        # the number of ancilla's depends on the number of coefficients, so update if necessary
+        if coeffs and self.num_state_qubits:
+            self._reset_registers(self.num_state_qubits)
 
     @property
     def degree(self) -> int:
@@ -154,11 +154,15 @@ class PolynomialPauliRotations(FunctionalPauliRotations):
     def _configuration_is_valid(self, raise_on_failure: bool = True) -> bool:
         valid = True
 
+        print('checking num state qubits')
         if self.num_state_qubits is None:
+            print('is none, should raise')
             valid = False
             if raise_on_failure:
+                print('raising')
                 raise AttributeError('The number of qubits has not been set.')
 
+        print('checking num qubits')
         if self.num_qubits < self.num_state_qubits + 1:
             valid = False
             if raise_on_failure:
@@ -210,11 +214,7 @@ class PolynomialPauliRotations(FunctionalPauliRotations):
         return super().data
 
     def _build(self):
-        # dictionary of controls for the rotation gates as a tuple and their respective angles
-        if self._data:
-            return
-
-        self._data = []
+        super()._build()
 
         qr_state = self.qubits[:self.num_state_qubits]
         qr_target = self.qubits[self.num_state_qubits]
