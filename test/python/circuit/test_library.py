@@ -78,6 +78,8 @@ class TestFunctionalPauliRotations(QiskitTestCase):
             i = bin(i)[2:].zfill(circuit.num_qubits)[num_ancilla_qubits:]
             probabilities[i] += np.real(np.abs(statevector_amplitude) ** 2)
 
+        unrolled_probabilities = []
+        unrolled_expectations = []
         for i, probability in probabilities.items():
             x, last_qubit = int(i[1:], 2), i[0]
             if last_qubit == '0':
@@ -85,8 +87,10 @@ class TestFunctionalPauliRotations(QiskitTestCase):
             else:
                 expected_amplitude = np.sin(reference(x)) / np.sqrt(2**num_state_qubits)
 
-            with self.subTest(x=x, last_qubit=last_qubit):
-                self.assertAlmostEqual(probability, np.real(np.abs(expected_amplitude) ** 2))
+            unrolled_probabilities += [probability]
+            unrolled_expectations += [np.real(np.abs(expected_amplitude) ** 2)]
+
+        np.testing.assert_almost_equal(unrolled_probabilities, unrolled_expectations)
 
     @data(
         ([1, 0.1], 3),
@@ -116,6 +120,30 @@ class TestFunctionalPauliRotations(QiskitTestCase):
         linear_rotation = LinearPauliRotations(num_state_qubits, slope * 2, offset * 2)
         self.assertFunctionIsCorrect(linear_rotation, linear, num_state_qubits)
 
+    def test_linear_rotations_mutability(self):
+        """Test the mutability of the linear rotations circuit."""
+
+        linear_rotation = LinearPauliRotations()
+
+        with self.subTest(msg='missing number of state qubits'):
+            with self.assertRaises(AttributeError):  # no state qubits set
+                print(linear_rotation.draw())
+
+        with self.subTest(msg='default setup, just setting number of state qubits'):
+            linear_rotation.num_state_qubits = 2
+            self.assertFunctionIsCorrect(linear_rotation, lambda x: x / 2, 2)
+
+        with self.subTest(msg='setting non-default values'):
+            linear_rotation.slope = -2.3 * 2
+            linear_rotation.offset = 1 * 2
+            self.assertFunctionIsCorrect(linear_rotation, lambda x: 1 - 2.3 * x, 2)
+
+        with self.subTest(msg='changing of all values'):
+            linear_rotation.num_state_qubits = 4
+            linear_rotation.slope = 0.2 * 2
+            linear_rotation.offset = 0.1 * 2
+            self.assertFunctionIsCorrect(linear_rotation, lambda x: 0.1 + 0.2 * x, 4)
+
     @data(
         (2, [0, 2], [-0.5, 1], [2, 1]),
         (3, [0, 2, 5], [1, 0, -1], [0, 2, 2]),
@@ -138,8 +166,6 @@ class TestFunctionalPauliRotations(QiskitTestCase):
 
         self.assertFunctionIsCorrect(pw_linear_rotations, pw_linear, num_state_qubits,
                                      pw_linear_rotations.num_ancilla_qubits)
-
-    # def test_linear_rotations_mutability(self):
 
 
 @ddt

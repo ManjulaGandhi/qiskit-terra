@@ -171,10 +171,11 @@ class LinearPauliRotations(QuantumCircuit):
             self._num_state_qubits = num_state_qubits
             self._data = None
 
-            # set new register of appropriate size
-            qr_state = QuantumRegister(num_state_qubits, name='state')
-            qr_target = QuantumRegister(1, name='target')
-            self.qregs = [qr_state, qr_target]
+            if num_state_qubits:
+                # set new register of appropriate size
+                qr_state = QuantumRegister(num_state_qubits, name='state')
+                qr_target = QuantumRegister(1, name='target')
+                self.qregs = [qr_state, qr_target]
 
     def _configuration_is_valid(self, raise_on_failure: bool = True) -> bool:
         valid = True
