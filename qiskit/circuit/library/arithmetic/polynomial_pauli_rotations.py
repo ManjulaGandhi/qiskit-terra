@@ -14,7 +14,7 @@
 
 """Polynomially controlled Pauli-rotations."""
 
-from typing import List
+from typing import List, Optional, Dict, Sequence
 
 from itertools import product
 from sympy.ntheory.multinomial import multinomial_coefficients
@@ -49,8 +49,11 @@ class PolynomialPauliRotations(QuantumCircuit):
     where :math:`c` are the input coefficients, ``coeffs``.
     """
 
-    def __init__(self, num_state_qubits: int, coeffs: List[float], basis: str = 'Y',
-                 reverse: bool = False) -> None:
+    def __init__(self, num_state_qubits: Optional[int] = None,
+                 coeffs: Optional[List[float]] = None,
+                 basis: str = 'Y',
+                 reverse: bool = False,
+                 name: str = 'poly') -> None:
         """Prepare an approximation to a state with amplitudes specified by a polynomial.
 
         Args:
@@ -60,26 +63,127 @@ class PolynomialPauliRotations(QuantumCircuit):
             basis: The type of Pauli rotation ('X', 'Y', 'Z').
             reverse: If True, apply the polynomial with the reversed list of qubits
                 (i.e. q_n as q_0, q_n-1 as q_1, etc).
-
-        Raises:
-            ValueError: invalid input
+            name: The name of the circuit.
         """
+        super().__init__(name=name)
+
+        # internal parameters
+        self._num_state_qubits = None
+        self._coeffs = None
+        self._basis = None
+        self._reverse = None
+
         # store parameters
         self.num_state_qubits = num_state_qubits
         self.coeffs = coeffs
-        self.degree = len(coeffs) - 1
-        self.basis = basis.lower()
+        self.basis = basis
         self.reverse = reverse
 
-        if self.basis not in ['x', 'y', 'z']:
-            raise ValueError('The provided basis must be X, Y or Z, not {}'.format(basis))
+    @property
+    def basis(self) -> str:
+        """The kind of Pauli rotation to be used.
 
-        qr_state = QuantumRegister(num_state_qubits)
-        qr_target = QuantumRegister(1)
-        qr_ancilla = QuantumRegister(self.num_ancilla_qubits)  # based on self.degree
-        super().__init__(qr_state, qr_target, qr_ancilla)
+        Set the basis to 'X', 'Y' or 'Z' for controlled-X, -Y, or -Z rotations respectively.
 
-        self._build(qr_state, qr_target, qr_ancilla)
+        Returns:
+            The kind of Pauli rotation used in controlled rotation.
+        """
+        return self._basis
+
+    @basis.setter
+    def basis(self, basis: str) -> None:
+        """Set the kind of Pauli rotation to be used.
+
+        Args:
+            basis: The Pauli rotation to be used.
+
+        Raises:
+            ValueError: The provided basis in not X, Y or Z.
+        """
+        basis = basis.lower()
+        if self._basis is None or basis != self._basis:
+            if basis not in ['x', 'y', 'z']:
+                raise ValueError('The provided basis must be X, Y or Z, not {}'.format(basis))
+            self._basis = basis
+            self._data = None
+
+    @property
+    def coeffs(self) -> List[float]:
+        """The multiplicative factor in the rotation angle of the controlled rotations.
+
+        The rotation angles are ``slope * 2^0``, ``slope * 2^1``, ... , ``slope * 2^(n-1)`` where
+        ``n`` is the number of state qubits.
+
+        Returns:
+            The rotation angle common in all controlled rotations.
+        """
+        return self._coeffs
+
+    @coeffs.setter
+    def coeffs(self, coeffs: List[float]) -> None:
+        """Set the multiplicative factor of the rotation angles.
+
+        Args:
+            The slope of the rotation angles.
+        """
+        self._coeffs = coeffs
+        self._data = None
+
+    @property
+    def degree(self) -> int:
+        """Return the degree of the polynomial, equals to the number of coefficients minus 1.
+
+        Returns:
+            The degree of the polynomial. If the coefficients have not been set, return 0.
+        """
+        if self.coeffs:
+            return len(self.coeffs) - 1
+        return 0
+
+    @property
+    def reverse(self) -> bool:
+        """Whether to apply the rotations on the reversed list of qubits.
+
+        Returns:
+            True, if the rotations are applied on the reversed list, False otherwise.
+        """
+        return self._reverse
+
+    @reverse.setter
+    def reverse(self, reverse: bool) -> None:
+        """Set to True to reverse the list of qubits.
+
+        Args:
+            reverse: If True, the rotations are applied on the reversed list. If False, then not.
+        """
+        if self._reverse is None or reverse != self._reverse:
+            self._reverse = reverse
+            self._data = None
+
+    @property
+    def num_state_qubits(self):
+        return self._num_state_qubits
+
+    @num_state_qubits.setter
+    def num_state_qubits(self, num_state_qubits: Optional[int]) -> None:
+        """Set the number of state qubits.
+
+        Note that this changes the underlying quantum register, if the number of state qubits
+        changes.
+
+        Args:
+            num_state_qubits: The new number of qubits.
+        """
+        if self._num_state_qubits is None or num_state_qubits != self._num_state_qubits:
+            self._num_state_qubits = num_state_qubits
+            self._data = None
+
+            if num_state_qubits:
+                # set new register of appropriate size
+                qr_state = QuantumRegister(num_state_qubits, name='state')
+                qr_target = QuantumRegister(1, name='target')
+                qr_ancilla = QuantumRegister(self.num_ancilla_qubits, name='ancilla')
+                self.qregs = [qr_state, qr_target, qr_ancilla]
 
     @property
     def num_ancilla_qubits(self) -> int:
@@ -90,61 +194,60 @@ class PolynomialPauliRotations(QuantumCircuit):
         """
         return max(1, self.degree - 1)
 
-    @property
-    def num_ancilla_qubits_controlled(self):
-        return max(1, self.degree)
+    def _get_rotation_coefficients(self) -> Dict[Sequence[int], float]:
+        """Compute the coefficient of each monomial.
 
-    def _get_controls(self):
+        Returns:
+            A dictionary with pairs ``{control_state: rotation angle}`` where ``control_state``
+            is a tuple of 0/1 bits.
         """
-        The list of controls is the list of all
-        monomials of the polynomial, where the qubits are the variables.
-        """
-        t = [0] * (self.num_state_qubits - 1) + [1]
-        cdict = {tuple(t): 0}
-        clist = list(product([0, 1], repeat=self.num_state_qubits))
-        index = 0
-        while index < len(clist):
-            tsum = 0
-            i = clist[index]
-            for j in i:
-                tsum = tsum + j
-            if tsum > self.degree:
-                clist.remove(i)
-            else:
-                index = index + 1
-        clist.remove(tuple([0] * self.num_state_qubits))
-        # For now set all angles to 0
-        for i in clist:
-            cdict[i] = 0
-        return cdict
+        # determine the control states
+        all_combinations = list(product([0, 1], repeat=self.num_state_qubits))
+        valid_combinations = []
+        for combination in all_combinations:
+            if 0 < sum(combination) <= self.degree:
+                valid_combinations += [combination]
 
-    def _get_thetas(self, cdict):
-        """
-        Compute the coefficient of each monomial.
-        This will be the argument for the controlled y-rotation.
-        """
-        for j in range(1, len(self.coeffs)):
-            # List of multinomial coefficients
-            mlist = multinomial_coefficients(self.num_state_qubits, j)
-            # Add angles
-            for m in mlist:
-                temp_t = []
-                powers = 1
-                # Get controls
-                for k in range(0, len(m)):  # pylint: disable=consider-using-enumerate
-                    if m[k] > 0:
-                        temp_t.append(1)
-                        powers *= 2 ** (k * m[k])
+        rotation_coeffs = {control_state: 0 for control_state in valid_combinations}
+
+        # compute the coefficients for the control states
+        for i, coeff in enumerate(self.coeffs[1:]):
+            i += 1  # since we skip the first element we need to increase i by one
+
+            # iterate over the multinomial coefficients
+            for comb, num_combs in multinomial_coefficients(self.num_state_qubits, i).items():
+                control_state = ()
+                power = 1
+                for j, qubit in enumerate(comb):
+                    if qubit > 0:  # means we control on qubit i
+                        control_state += (1,)
+                        power *= 2 ** (j * qubit)
                     else:
-                        temp_t.append(0)
-                temp_t = tuple(temp_t)
-                # Add angle
-                cdict[temp_t] += self.coeffs[j] * mlist[m] * powers
-        return cdict
+                        control_state += (0,)
 
-    def _build(self, qr_state, qr_target, qr_ancilla):
+                # Add angle
+                rotation_coeffs[control_state] += coeff * num_combs * power
+
+        return rotation_coeffs
+
+    @property
+    def data(self):
+        if self._data is None:
+            self._build()
+        return super().data
+
+    def _build(self):
         # dictionary of controls for the rotation gates as a tuple and their respective angles
-        cdict = self._get_thetas(self._get_controls())
+        if self._data:
+            return
+
+        self._data = []
+
+        qr_state = self.qubits[:self.num_state_qubits]
+        qr_target = self.qubits[self.num_state_qubits]
+        qr_ancilla = self.qubits[self.num_state_qubits + 1:]
+
+        rotation_coeffs = self._get_rotation_coefficients()
 
         if self.basis == 'x':
             self.rx(2 * self.coeffs[0], qr_target)
@@ -153,7 +256,7 @@ class PolynomialPauliRotations(QuantumCircuit):
         else:
             self.rz(2 * self.coeffs[0], qr_target)
 
-        for c in cdict:
+        for c in rotation_coeffs:
             qr_control = []
             if self.reverse:
                 for i, _ in enumerate(c):
@@ -167,16 +270,16 @@ class PolynomialPauliRotations(QuantumCircuit):
             # apply controlled rotations
             if len(qr_control) > 1:
                 if self.basis == 'x':
-                    self.mcrx(2 * cdict[c], qr_control, qr_target[0], qr_ancilla)
+                    self.mcrx(2 * rotation_coeffs[c], qr_control, qr_target, qr_ancilla)
                 elif self.basis == 'y':
-                    self.mcry(2 * cdict[c], qr_control, qr_target[0], qr_ancilla)
+                    self.mcry(2 * rotation_coeffs[c], qr_control, qr_target, qr_ancilla)
                 else:
-                    self.mcrz(2 * cdict[c], qr_control, qr_target[0], qr_ancilla)
+                    self.mcrz(2 * rotation_coeffs[c], qr_control, qr_target, qr_ancilla)
 
             elif len(qr_control) == 1:
                 if self.basis == 'x':
-                    self.u3(2 * cdict[c], -np.pi / 2, np.pi / 2, qr_control[0], qr_target)
+                    self.u3(2 * rotation_coeffs[c], -np.pi / 2, np.pi / 2, qr_control[0], qr_target)
                 elif self.basis == 'y':
-                    self.cry(2 * cdict[c], qr_control[0], qr_target[0])
+                    self.cry(2 * rotation_coeffs[c], qr_control[0], qr_target)
                 else:
-                    self.crz(2 * cdict[c], qr_control[0], qr_target[0])
+                    self.crz(2 * rotation_coeffs[c], qr_control[0], qr_target)
