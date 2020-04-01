@@ -113,7 +113,7 @@ class TestFunctionalPauliRotations(QiskitTestCase):
         def linear(x):
             return offset + slope * x
 
-        linear_rotation = LinearPauliRotations(num_state_qubits + 1, slope * 2, offset * 2)
+        linear_rotation = LinearPauliRotations(num_state_qubits, slope * 2, offset * 2)
         self.assertFunctionIsCorrect(linear_rotation, linear, num_state_qubits)
 
     @data(
@@ -140,7 +140,6 @@ class TestFunctionalPauliRotations(QiskitTestCase):
                                      pw_linear_rotations.num_ancilla_qubits)
 
     # def test_linear_rotations_mutability(self):
-
 
 
 @ddt

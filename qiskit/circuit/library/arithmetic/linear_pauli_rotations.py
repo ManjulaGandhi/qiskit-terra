@@ -17,6 +17,7 @@
 from typing import Optional, List, Tuple
 
 from qiskit.circuit import QuantumCircuit, QuantumRegister, Qubit, Clbit, Instruction
+from qiskit.circuit.exceptions import CircuitError
 
 
 class LinearPauliRotations(QuantumCircuit):
@@ -45,7 +46,7 @@ class LinearPauliRotations(QuantumCircuit):
     linear functions.
     """
 
-    def __init__(self, num_qubits: Optional[int] = None,
+    def __init__(self, num_state_qubits: Optional[int] = None,
                  slope: float = 1,
                  offset: float = 0,
                  basis: str = 'Y',
@@ -53,23 +54,22 @@ class LinearPauliRotations(QuantumCircuit):
         r"""Create a new linear rotation circuit.
 
         Args:
-            num_qubits: The number of qubits representing the state :math:`|x\rangle`.
+            num_state_qubits: The number of qubits representing the state :math:`|x\rangle`.
             slope: The slope of the controlled rotation.
             offset: The offset of the controlled rotation.
             basis: The type of Pauli rotation ('X', 'Y', 'Z').
             name: The name of the circuit object.
         """
-        if num_qubits:
-            super().__init__(num_qubits, name=name)
-        else:
-            super().__init__(name=name)
+        super().__init__(name=name)
 
         # define internal parameters
+        self._num_state_qubits = None
         self._basis = None
         self._slope = None
         self._offset = None
 
         # store parameters
+        self.num_state_qubits = num_state_qubits
         self.basis = basis
         self.slope = slope
         self.offset = offset
@@ -148,29 +148,47 @@ class LinearPauliRotations(QuantumCircuit):
             self._offset = offset
             self._data = None
 
-    @QuantumCircuit.num_qubits.setter
-    def num_qubits(self, num_qubits: int) -> None:
-        """Set the number of qubits.
+    @property
+    def num_state_qubits(self) -> int:
+        r"""The number of state qubits representing the state :math:`|x\rangle`.
 
-        Note that this changes the underlying quantum register.
+        Returns:
+            The number of state qubits.
+        """
+        return self._num_state_qubits
+
+    @num_state_qubits.setter
+    def num_state_qubits(self, num_state_qubits: Optional[int]) -> None:
+        """Set the number of state qubits.
+
+        Note that this changes the underlying quantum register, if the number of state qubits
+        changes.
 
         Args:
-            num_qubits: The new number of qubits.
+            num_state_qubits: The new number of qubits.
         """
-        if num_qubits != super().num_qubits:  # using self.num_qubits is disallowed by pylint
+        if self._num_state_qubits is None or num_state_qubits != self._num_state_qubits:
+            self._num_state_qubits = num_state_qubits
             self._data = None
 
             # set new register of appropriate size
-            qr = QuantumRegister(num_qubits, name='q')
-            self.qregs = [qr]
+            qr_state = QuantumRegister(num_state_qubits, name='state')
+            qr_target = QuantumRegister(1, name='target')
+            self.qregs = [qr_state, qr_target]
 
     def _configuration_is_valid(self, raise_on_failure: bool = True) -> bool:
         valid = True
 
-        if self.num_qubits is None:
+        if self.num_state_qubits is None:
             valid = False
             if raise_on_failure:
                 raise AttributeError('The number of qubits has not been set.')
+
+        if self.num_qubits < self.num_state_qubits + 1:
+            valid = False
+            if raise_on_failure:
+                raise CircuitError('Not enough qubits in the circuit, need at least '
+                                   '{}.'.format(self.num_state_qubits + 1))
 
         return valid
 
@@ -180,7 +198,6 @@ class LinearPauliRotations(QuantumCircuit):
         if self._data is None:
             self._build()
         return super().data
-        # return QuantumCircuitData(self)
 
     def _build(self):
         if self._data:
@@ -190,7 +207,8 @@ class LinearPauliRotations(QuantumCircuit):
 
         _ = self._configuration_is_valid()
 
-        qr_state, qr_target = self.qubits[:-1], self.qubits[-1]
+        qr_state = self.qubits[:self.num_state_qubits]
+        qr_target = self.qubits[self.num_state_qubits]
 
         if self.basis == 'x':
             self.rx(self.offset, qr_target)

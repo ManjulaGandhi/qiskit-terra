@@ -116,7 +116,7 @@ class PiecewiseLinearPauliRotations(QuantumCircuit):
         for i, point in enumerate(self.breakpoints):
             if i == 0 and self.contains_zero_breakpoint:
                 # apply rotation
-                lin_r = LinR(num_qubits=self.num_state_qubits + 1,
+                lin_r = LinR(num_state_qubits=self.num_state_qubits,
                              slope=self.mapped_slopes[i],
                              offset=self.mapped_offsets[i],
                              basis=self.basis)
@@ -137,7 +137,7 @@ class PiecewiseLinearPauliRotations(QuantumCircuit):
                             qr[:] + qr_remaining_ancilla[:comp.num_ancilla_qubits])
 
                 # apply controlled rotation
-                lin_r = LinR(num_qubits=self.num_state_qubits + 1,
+                lin_r = LinR(num_state_qubits=self.num_state_qubits,
                              slope=self.mapped_slopes[i],
                              offset=self.mapped_offsets[i],
                              basis=self.basis)
