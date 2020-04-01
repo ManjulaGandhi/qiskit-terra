@@ -24,7 +24,7 @@ from qiskit.circuit import QuantumCircuit, QuantumRegister
 from qiskit.circuit.exceptions import CircuitError
 from qiskit.circuit.library import Permutation, XOR, InnerProduct
 from qiskit.circuit.library.arithmetic import (LinearPauliRotations, PolynomialPauliRotations,
-                                               FixedValueComparator, PiecewiseLinearPauliRotations)
+                                               IntegerComparator, PiecewiseLinearPauliRotations)
 
 
 class TestBooleanLogicLibrary(QiskitTestCase):
@@ -145,6 +145,7 @@ class TestFunctionalPauliRotations(QiskitTestCase):
             self.assertFunctionIsCorrect(linear_rotation, lambda x: 0.1 + 0.2 * x, 4)
 
     @data(
+        (1, [0], [1], [0]),
         (2, [0, 2], [-0.5, 1], [2, 1]),
         (3, [0, 2, 5], [1, 0, -1], [0, 2, 2]),
         (2, [1, 2], [1, -1], [2, 1]),
@@ -169,14 +170,14 @@ class TestFunctionalPauliRotations(QiskitTestCase):
 
 
 @ddt
-class TestFixedValueComparator(QiskitTestCase):
+class TestIntegerComparator(QiskitTestCase):
     """Text Fixed Value Comparator"""
 
     def assertComparisonIsCorrect(self, comp, num_state_qubits, value, geq):
         """Assert that the comparator output is correct."""
-        qc = QuantumCircuit(comp.n_qubits)  # initialize circuit
+        qc = QuantumCircuit(comp.num_qubits)  # initialize circuit
         qc.h(list(range(num_state_qubits)))  # set equal superposition state
-        qc.append(comp, list(range(comp.n_qubits)))  # add comparator
+        qc.append(comp, list(range(comp.num_qubits)))  # add comparator
 
         # run simulation
         backend = BasicAer.get_backend('statevector_simulator')
@@ -208,13 +209,13 @@ class TestFixedValueComparator(QiskitTestCase):
     def test_fixed_value_comparator(self, num_state_qubits, value, geq):
         """Test the fixed value comparator circuit."""
         # build the circuit with the comparator
-        comp = FixedValueComparator(num_state_qubits, value, geq=geq)
+        comp = IntegerComparator(num_state_qubits, value, geq=geq)
         self.assertComparisonIsCorrect(comp, num_state_qubits, value, geq)
 
     def test_mutability(self):
         """Test changing the arguments of the comparator."""
 
-        comp = FixedValueComparator()
+        comp = IntegerComparator()
 
         with self.subTest(msg='missing num state qubits and value'):
             with self.assertRaises(AttributeError):

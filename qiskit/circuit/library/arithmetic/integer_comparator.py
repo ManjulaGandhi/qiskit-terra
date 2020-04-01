@@ -12,7 +12,7 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-"""Fixed Value Comparator."""
+"""Scalar Comparator."""
 
 from typing import List, Optional
 import numpy as np
@@ -22,11 +22,11 @@ from qiskit.circuit.exceptions import CircuitError
 from qiskit.aqua.circuits.gates import logical_or  # pylint: disable=unused-import
 
 
-class FixedValueComparator(QuantumCircuit):
-    r"""Fixed Value Comparator.
+class IntegerComparator(QuantumCircuit):
+    r"""Integer Comparator.
 
-    Operator compares basis states \|i>_n against a classically
-    given fixed value L and flips a target qubit if i >= L (or < depending on parameters):
+    Operator compares basis states \|i>_n against a classically given integer L
+    of fixed value and flips a target qubit if i >= L (or < depending on parameters):
 
         \|i>_n\|0> --> \|i>_n\|1> if i >= L else \|i>\|0>
 

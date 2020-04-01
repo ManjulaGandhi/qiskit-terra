@@ -20,10 +20,13 @@ from itertools import product
 from sympy.ntheory.multinomial import multinomial_coefficients
 import numpy as np
 
-from qiskit.circuit import QuantumCircuit, QuantumRegister
+from qiskit.circuit import QuantumRegister
+from qiskit.circuit.exceptions import CircuitError
+
+from .funtional_pauli_rotations import FunctionalPauliRotations
 
 
-class PolynomialPauliRotations(QuantumCircuit):
+class PolynomialPauliRotations(FunctionalPauliRotations):
     r"""A circuit implementing polynomial Pauli rotations.
 
     For a polynomial :math`p(x)`, a basis state :math:`|i\rangle` and a target qubit
@@ -59,53 +62,18 @@ class PolynomialPauliRotations(QuantumCircuit):
         Args:
             num_state_qubits: The number of qubits representing the state.
             coeffs: The coefficients of the polynomial. ``coeffs[i]`` is the coefficient of the
-                i-th power of x.
+                i-th power of x. Defaults to linear: [0, 1].
             basis: The type of Pauli rotation ('X', 'Y', 'Z').
             reverse: If True, apply the polynomial with the reversed list of qubits
                 (i.e. q_n as q_0, q_n-1 as q_1, etc).
             name: The name of the circuit.
         """
-        super().__init__(name=name)
+        # set default internal parameters
+        self._coeffs = coeffs or [0, 1]
+        self._reverse = reverse
 
-        # internal parameters
-        self._num_state_qubits = None
-        self._coeffs = None
-        self._basis = None
-        self._reverse = None
-
-        # store parameters
-        self.num_state_qubits = num_state_qubits
-        self.coeffs = coeffs
-        self.basis = basis
-        self.reverse = reverse
-
-    @property
-    def basis(self) -> str:
-        """The kind of Pauli rotation to be used.
-
-        Set the basis to 'X', 'Y' or 'Z' for controlled-X, -Y, or -Z rotations respectively.
-
-        Returns:
-            The kind of Pauli rotation used in controlled rotation.
-        """
-        return self._basis
-
-    @basis.setter
-    def basis(self, basis: str) -> None:
-        """Set the kind of Pauli rotation to be used.
-
-        Args:
-            basis: The Pauli rotation to be used.
-
-        Raises:
-            ValueError: The provided basis in not X, Y or Z.
-        """
-        basis = basis.lower()
-        if self._basis is None or basis != self._basis:
-            if basis not in ['x', 'y', 'z']:
-                raise ValueError('The provided basis must be X, Y or Z, not {}'.format(basis))
-            self._basis = basis
-            self._data = None
+        # initialize super (after setting coeffs)
+        super().__init__(num_state_qubits=num_state_qubits, basis=basis, name=name)
 
     @property
     def coeffs(self) -> List[float]:
@@ -126,6 +94,10 @@ class PolynomialPauliRotations(QuantumCircuit):
         Args:
             The slope of the rotation angles.
         """
+        # the number of ancilla's depends on the number of coefficients, so update if necessary
+        if coeffs and self.num_state_qubits and len(coeffs) != len(self._coeffs):
+            self._reset_registers(self.num_state_qubits)
+
         self._coeffs = coeffs
         self._data = None
 
@@ -161,31 +133,6 @@ class PolynomialPauliRotations(QuantumCircuit):
             self._data = None
 
     @property
-    def num_state_qubits(self):
-        return self._num_state_qubits
-
-    @num_state_qubits.setter
-    def num_state_qubits(self, num_state_qubits: Optional[int]) -> None:
-        """Set the number of state qubits.
-
-        Note that this changes the underlying quantum register, if the number of state qubits
-        changes.
-
-        Args:
-            num_state_qubits: The new number of qubits.
-        """
-        if self._num_state_qubits is None or num_state_qubits != self._num_state_qubits:
-            self._num_state_qubits = num_state_qubits
-            self._data = None
-
-            if num_state_qubits:
-                # set new register of appropriate size
-                qr_state = QuantumRegister(num_state_qubits, name='state')
-                qr_target = QuantumRegister(1, name='target')
-                qr_ancilla = QuantumRegister(self.num_ancilla_qubits, name='ancilla')
-                self.qregs = [qr_state, qr_target, qr_ancilla]
-
-    @property
     def num_ancilla_qubits(self) -> int:
         """The number of ancilla qubits in this circuit.
 
@@ -193,6 +140,32 @@ class PolynomialPauliRotations(QuantumCircuit):
             The number of ancilla qubits.
         """
         return max(1, self.degree - 1)
+
+    def _reset_registers(self, num_state_qubits):
+        if num_state_qubits:
+            # set new register of appropriate size
+            qr_state = QuantumRegister(num_state_qubits, name='state')
+            qr_target = QuantumRegister(1, name='target')
+            qr_ancilla = QuantumRegister(self.num_ancilla_qubits, name='ancilla')
+            self.qregs = [qr_state, qr_target, qr_ancilla]
+        else:
+            self.qregs = []
+
+    def _configuration_is_valid(self, raise_on_failure: bool = True) -> bool:
+        valid = True
+
+        if self.num_state_qubits is None:
+            valid = False
+            if raise_on_failure:
+                raise AttributeError('The number of qubits has not been set.')
+
+        if self.num_qubits < self.num_state_qubits + 1:
+            valid = False
+            if raise_on_failure:
+                raise CircuitError('Not enough qubits in the circuit, need at least '
+                                   '{}.'.format(self.num_state_qubits + 1))
+
+        return valid
 
     def _get_rotation_coefficients(self) -> Dict[Sequence[int], float]:
         """Compute the coefficient of each monomial.
