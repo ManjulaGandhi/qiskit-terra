@@ -2,7 +2,7 @@
 
 # This code is part of Qiskit.
 #
-# (C) Copyright IBM 2019.
+# (C) Copyright IBM 2017, 2020.
 #
 # This code is licensed under the Apache License, Version 2.0. You may
 # obtain a copy of this license in the LICENSE.txt file in the root directory
@@ -12,101 +12,235 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-"""
-Adds q^T * w to separate register for non-negative integer weights w
-"""
+"""Compute the weighted sum of qubit states."""
 
-import logging
-from typing import List
-
+from typing import List, Optional
 import numpy as np
 
 from qiskit.circuit import QuantumCircuit, QuantumRegister
 
-logger = logging.getLogger(__name__)
-
 
 class WeightedAdder(QuantumCircuit):
-    """
-    Adds q^T * w to separate register for non-negative integer weights w
+    r"""A circuit to compute the weighted sum of qubit registers.
+
+    Given :math:`n` qubits :math:`q_0, \ldots, q_{n-1}` and non-negative integer weights
+    :math:`\lambda_0, \ldots, \lambda_{n-1}`, this circuit performs the operation
+
+    .. math::
+
+        |q_0 \ldots q_{n-1}\rangle |0\rangle_s
+        \mapsto |q_0 \ldots q_{n-1}\rangle |\sum_{j=0}^{n-1} \lambda_j q_j\rangle_s
+
+    where :math:`s` is the number of sum qubits required.
+    This can be computed as
+
+    .. math::
+
+        s = 1 + \left\lfloor \log_2\left( \sum_{j=0}^{n-1} \lambda_j \right) \right\rfloor
+
+    or :math:`s = 1` if the sum of the weights is 0 (then the expression in the logarithm is
+    invalid).
+
+    For qubits in a circuit diagram, the first weight applies to the upper-most qubit.
+    For an example where the state of 4 qubits is added into a sum register, the circuit can
+    be schematically drawn as
+
+    .. parsed-literal::
+
+                   ┌────────┐
+          state_0: ┤0       ├ \ state_0 * weights[0]
+                   │        │ |
+          state_1: ┤1       ├ | + state_1 * weights[1]
+                   │        │ |
+          state_2: ┤2       ├ | + state_2 * weights[2]
+                   │        │ |
+          state_3: ┤3       ├ / + state_3 * weights[3]
+                   │        │
+            sum_0: ┤4       ├ \
+                   │  Adder │ |
+            sum_1: ┤5       ├ | = sum_0 * 2^0 + sum_1 * 2^1 + sum_2 * 2^2
+                   │        │ |
+            sum_2: ┤6       ├ /
+                   │        │
+          carry_0: ┤7       ├
+                   │        │
+          carry_1: ┤8       ├
+                   │        │
+        control_0: ┤9       ├
+                   └────────┘
     """
 
-    def __init__(self, num_state_qubits: int, weights: List[int]) -> None:
+    def __init__(self,
+                 num_state_qubits: Optional[int] = None,
+                 weights: Optional[List[int]] = None,
+                 name: str = 'adder') -> None:
         """Computes the weighted sum controlled by state qubits.
 
         Args:
             num_state_qubits: The number of state qubits.
             weights: The weights per state qubits.
+            name: The name of the circuit.
         """
+        super().__init__(name=name)
+
+        self._weights = None
+        self._num_state_qubits = None
+
+        self.weights = weights
+        self.num_state_qubits = num_state_qubits
+
+    @property
+    def num_sum_qubits(self) -> int:
+        """The number of sum qubits in the circuit.
+
+        Returns:
+            The number of qubits needed to represent the weighted sum of the qubits.
+        """
+        if sum(self.weights) > 0:
+            return int(np.floor(np.log2(sum(self.weights))) + 1)
+        return 1
+
+    @property
+    def weights(self) -> List[int]:
+        """The weights for the qubit states.
+
+        Returns:
+            The weight for the qubit states.
+        """
+        if self._weights:
+            return self._weights
+        if self.num_state_qubits:
+            return [1] * self.num_state_qubits
+        return None
+
+    @weights.setter
+    def weights(self, weights: List[int]) -> None:
+        """Set the weights for summing the qubit states.
+
+        Args:
+            weights: The new weights.
+
+        Raises:
+            ValueError: If not all weights are close to an integer.
+        """
+        if weights:
+            for i, weight in enumerate(weights):
+                if not np.isclose(weight, np.round(weight)):
+                    raise ValueError('Non-integer weights are not supported!')
+                weights[i] = np.round(weight)
 
         self._weights = weights
-
-        # check weights
-        for i, weight in enumerate(weights):
-            if not np.isclose(weight, np.round(weight)):
-                logger.warning('Non-integer weights are rounded to '
-                               'the nearest integer! (%s, %s).', i, weight)
-
-        self._num_state_qubits = num_state_qubits
-        self._num_sum_qubits = WeightedAdder.get_required_sum_qubits(weights)
-        self._num_carry_qubits = self.num_sum_qubits - 1
-
-        qr_state = QuantumRegister(self._num_state_qubits)
-        qr_sum = QuantumRegister(self._num_sum_qubits)
-        qr_ancilla = QuantumRegister(self.num_ancillas)
-
-        super().__init__(qr_state, qr_sum, qr_ancilla)
-
-        self._build(qr_state, qr_sum, qr_ancilla)
-
-    @staticmethod
-    def get_required_sum_qubits(weights):
-        """ get required sum qubits """
-        return int(np.floor(np.log2(sum(weights))) + 1)
+        self._data = None
+        self._reset_registers()
 
     @property
-    def weights(self):
-        """ returns weights """
-        return self._weights
+    def num_state_qubits(self) -> int:
+        """The number of qubits to be summed.
 
-    @property
-    def num_state_qubits(self):
-        """ returns num state qubits """
+        Returns:
+            The number of state qubits.
+        """
         return self._num_state_qubits
 
-    @property
-    def num_sum_qubits(self):
-        """ returns num sum qubits """
-        return self._num_sum_qubits
+    @num_state_qubits.setter
+    def num_state_qubits(self, num_state_qubits: int) -> None:
+        """Set the number of state qubits.
 
-    @property
-    def num_carry_qubits(self):
-        """ returns num carry qubits """
-        return self._num_carry_qubits
+        Args:
+            num_state_qubits: The new number of state qubits.
+        """
+        if self._num_state_qubits is None or num_state_qubits != self._num_state_qubits:
+            self._data = None
+            self._num_state_qubits = num_state_qubits
+            self._reset_registers()
 
-    @property
-    def num_ancillas(self):
-        """ required ancillas """
-        if self.num_sum_qubits > 2:
-            # includes one ancilla qubit for 3-controlled not gates
-            # TODO: validate when the +1 is needed and make a case distinction
-            return self.num_carry_qubits + 1
+    def _reset_registers(self):
+        if self.num_state_qubits:
+            qr_state = QuantumRegister(self.num_state_qubits, name='state')
+            qr_sum = QuantumRegister(self.num_sum_qubits, name='sum')
+            self.qregs = [qr_state, qr_sum]
+            if self.num_carry_qubits > 0:
+                qr_carry = QuantumRegister(self.num_carry_qubits, name='carry')
+                self.qregs += [qr_carry]
+
+            if self.num_control_qubits > 0:
+                qr_control = QuantumRegister(self.num_control_qubits, name='control')
+                self.qregs += [qr_control]
         else:
-            return self.num_carry_qubits
+            self.qregs = []
 
-    def required_ancillas_controlled(self):
-        """ returns required ancillas controlled """
-        return self.required_ancillas()
+    @property
+    def num_carry_qubits(self) -> int:
+        """The number of carry qubits required to compute the sum.
 
-    def _build(self, qr_state, qr_sum, qr_ancilla):
-        # set indices for sum and carry qubits (from ancilla register)
-        qr_carry = qr_ancilla[:self.num_carry_qubits]
-        q_control = qr_ancilla[self.num_carry_qubits]
+        Note that this is not necessarily equal to the number of ancilla qubits, these can
+        be queried using ``num_ancilla_qubits``.
+
+        Returns:
+            The number of carry qubits required to compute the sum.
+        """
+        return self.num_sum_qubits - 1
+
+    @property
+    def num_control_qubits(self) -> int:
+        """The number of additional control qubits required.
+
+        Note that the total number of ancilla qubits can be obtained by calling the
+        method ``num_ancilla_qubits``.
+
+        Returns:
+            The number of additional control qubits required (0 or 1).
+        """
+        return int(self.num_sum_qubits > 2)
+
+    @property
+    def num_ancilla_qubits(self) -> int:
+        """The number of ancilla qubits required to implement the weighted sum.
+
+        Returns:
+            The number of ancilla qubits in the circuit.
+        """
+        return self.num_carry_qubits + self.num_control_qubits
+
+    @property
+    def data(self):
+        if self._data is None:
+            self._build()
+        return super().data
+
+    def _configuration_is_valid(self, raise_on_failure=True):
+        valid = True
+        if self._num_state_qubits is None:
+            valid = False
+            if raise_on_failure:
+                raise AttributeError('The number of state qubits has not been set.')
+
+        if self._num_state_qubits != len(self.weights):
+            valid = False
+            if raise_on_failure:
+                raise ValueError('Mismatching number of state qubits and weights.')
+
+        return valid
+
+    def _build(self):
+        if self._data:
+            return
+
+        _ = self._configuration_is_valid()
+
+        self._data = []
+
+        num_result_qubits = self.num_state_qubits + self.num_sum_qubits
+
+        qr_state = self.qubits[:self.num_state_qubits]
+        qr_sum = self.qubits[self.num_state_qubits:num_result_qubits]
+        qr_carry = self.qubits[num_result_qubits:num_result_qubits + self.num_carry_qubits]
+        qr_control = self.qubits[num_result_qubits + self.num_carry_qubits:]
 
         # loop over state qubits and corresponding weights
         for i, weight in enumerate(self.weights):
             # only act if non-trivial weight
-            if weight == 0:
+            if np.isclose(weight, 0):
                 continue
 
             # get state control qubit
@@ -136,7 +270,7 @@ class WeightedAdder(QuantumCircuit):
                         # - controlled by q_state[i]
                         self.x(qr_sum[j])
                         self.x(qr_carry[j - 1])
-                        self.mct([q_state, qr_sum[j], qr_carry[j - 1]], qr_carry[j], [q_control])
+                        self.mct([q_state, qr_sum[j], qr_carry[j - 1]], qr_carry[j], qr_control)
                         self.cx(q_state, qr_carry[j])
                         self.x(qr_sum[j])
                         self.x(qr_carry[j - 1])
@@ -155,7 +289,7 @@ class WeightedAdder(QuantumCircuit):
                     else:
                         # compute (q_sum[j] + q_carry[j-1]) into (q_sum[j], q_carry[j])
                         # - controlled by q_state[i]
-                        self.mct([q_state, qr_sum[j], qr_carry[j - 1]], qr_carry[j], [q_control])
+                        self.mct([q_state, qr_sum[j], qr_carry[j - 1]], qr_carry[j], qr_control)
                         self.ccx(q_state, qr_carry[j - 1], qr_sum[j])
 
             # uncompute carry qubits
@@ -172,7 +306,7 @@ class WeightedAdder(QuantumCircuit):
                         pass
                     else:
                         self.x(qr_carry[j - 1])
-                        self.mct([q_state, qr_sum[j], qr_carry[j - 1]], qr_carry[j], [q_control])
+                        self.mct([q_state, qr_sum[j], qr_carry[j - 1]], qr_carry[j], qr_control)
                         self.cx(q_state, qr_carry[j])
                         self.x(qr_carry[j - 1])
                 else:
@@ -186,5 +320,5 @@ class WeightedAdder(QuantumCircuit):
                         # compute (q_sum[j] + q_carry[j-1]) into (q_sum[j], q_carry[j])
                         # - controlled by q_state[i]
                         self.x(qr_sum[j])
-                        self.mct([q_state, qr_sum[j], qr_carry[j - 1]], qr_carry[j], [q_control])
+                        self.mct([q_state, qr_sum[j], qr_carry[j - 1]], qr_carry[j], qr_control)
                         self.x(qr_sum[j])
