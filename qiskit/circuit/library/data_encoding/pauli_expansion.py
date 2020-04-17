@@ -94,11 +94,12 @@ class PauliExpansion(NLocal):
 
         self._data_map_func = data_map_func or self_product
         self._paulis = paulis or ['Z', 'ZZ']
+        self.entanglement_blocks = [self.pauli_block(pauli) for pauli in self._paulis]
 
-    @property
-    def num_parameters_settable(self):
-        """The number of distinct parameters."""
-        return self.feature_dimension
+    # @property
+    # def num_parameters_settable(self):
+    #     """The number of distinct parameters."""
+    #     return self.feature_dimension
 
     @property
     def paulis(self) -> List[str]:
@@ -118,10 +119,6 @@ class PauliExpansion(NLocal):
         """
         self._invalidate()
         self._paulis = paulis
-
-    @property
-    def entanglement_blocks(self):
-        return [self.pauli_block(pauli) for pauli in self._paulis]
 
     @property
     def feature_dimension(self) -> int:
@@ -189,22 +186,6 @@ class PauliExpansion(NLocal):
         basis_change(evo, inverse=True)
         return evo
 
-    def _build_entanglement_layer(self, param_iter, i):
-        """Build an entanglement layer."""
-        # iterate over all entanglement blocks
-        for j, block in enumerate(self.entanglement_blocks):
-            # create a new layer and get the entangler map for this block
-            layer = QuantumCircuit(*self.qregs)
-            entangler_map = self.get_entangler_map(i, j, block.num_qubits)
-
-            # apply the operations in the layer
-            for indices in entangler_map:
-                parametrized_block = self._parametrize_block(block, param_iter)
-                layer.append(parametrized_block, indices)
-
-            # add the layer to the circuit
-            self += layer
-
 
 def self_product(x: np.ndarray) -> float:
     """
@@ -216,5 +197,6 @@ def self_product(x: np.ndarray) -> float:
     Returns:
         float: the mapped value
     """
-    coeff = x[0] if len(x) == 1 else reduce(lambda m, n: m * n, np.pi - x)
-    return coeff
+    # coeff = x[0] if len(x) == 1 else reduce(lambda m, n: m * n, 3 - x)
+    # return coeff
+    return x[0]

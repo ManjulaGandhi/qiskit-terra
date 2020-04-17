@@ -912,8 +912,6 @@ class NLocal(QuantumCircuit):
                 layer.append(block, indices)
             self += layer
 
-    def get_parameter(self, rep_num, indices)
-
     def _build(self) -> None:
         """Build the circuit."""
         if self._data:
