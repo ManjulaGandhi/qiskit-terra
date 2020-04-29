@@ -2,7 +2,7 @@
 
 # This code is part of Qiskit.
 #
-# (C) Copyright IBM 2020.
+# (C) Copyright IBM 2017, 2020.
 #
 # This code is licensed under the Apache License, Version 2.0. You may
 # obtain a copy of this license in the LICENSE.txt file in the root directory
@@ -18,7 +18,6 @@
 
 from typing import List, Optional
 
-import numpy as np
 from qiskit.circuit import QuantumRegister, QuantumCircuit
 from qiskit.circuit.library.standard_gates import MCXGate
 
