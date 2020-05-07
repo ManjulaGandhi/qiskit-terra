@@ -36,7 +36,7 @@ except ImportError:
 
 from qiskit.circuit import ControlledGate
 from qiskit.visualization import exceptions
-from qiskit.visualization.qcstyle import DefaultStyle, BWStyle
+from qiskit.visualization.qcstyle import IQXStyle, BWStyle
 from qiskit import user_config
 from qiskit.circuit.tools.pi_check import pi_check
 
@@ -128,13 +128,13 @@ class MatplotlibDrawer:
         if config and (style is None):
             config_style = config.get('circuit_mpl_style', 'default')
             if config_style == 'default':
-                self._style = DefaultStyle()
+                self._style = IQXStyle()
             elif config_style == 'bw':
                 self._style = BWStyle()
         elif style is False:
             self._style = BWStyle()
         else:
-            self._style = DefaultStyle()
+            self._style = IQXStyle()
 
         self.plot_barriers = plot_barriers
         self.reverse_bits = reverse_bits
@@ -200,7 +200,7 @@ class MatplotlibDrawer:
             _fc = fc
         else:
             if self._style.name != 'bw':
-                if self._style.gc != DefaultStyle().gc:
+                if self._style.gc != IQXStyle().gc:
                     _fc = self._style.gc
                 else:
                     _fc = self._style.dispcol['multi']
@@ -266,7 +266,7 @@ class MatplotlibDrawer:
             wid = WID
         if fc:
             _fc = fc
-        elif self._style.gc != DefaultStyle().gc:
+        elif self._style.gc != IQXStyle().gc:
             _fc = self._style.gc
         elif text and text in self._style.dispcol:
             _fc = self._style.dispcol[text]
@@ -411,7 +411,7 @@ class MatplotlibDrawer:
         self.ax.add_patch(box)
 
     def _ctrl_qubit(self, xy, fc=None, ec=None):
-        if self._style.gc != DefaultStyle().gc:
+        if self._style.gc != IQXStyle().gc:
             fc = self._style.gc
             ec = self._style.gc
         if fc is None:
@@ -435,7 +435,7 @@ class MatplotlibDrawer:
 
     def _tgt_qubit(self, xy, fc=None, ec=None, ac=None,
                    add_width=None):
-        if self._style.gc != DefaultStyle().gc:
+        if self._style.gc != IQXStyle().gc:
             fc = self._style.gc
             ec = self._style.gc
         if fc is None:

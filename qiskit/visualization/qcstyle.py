@@ -18,6 +18,117 @@ from copy import copy
 from warnings import warn
 
 
+class IQXStyle:
+    """IBM IQX Design Style colors."""
+
+    def __init__(self):
+        # Set colors
+        basis_color = '#D2A106'
+        clifford_color = '#33B1FF'
+        non_gate_color = '#000000'
+        other_color = '#9F1853'
+        pauli_color = '#002D9C'
+        iden_color = '#002D9C'
+
+        self.name = 'iqx'
+        self.tc = '#000000'
+        self.sc = '#000000'
+        self.lc = '#000000'
+        self.not_gate_lc = '#ffffff'
+        self.cc = '#778899'
+        self.gc = '#ffffff'
+        self.gt = '#ffffff'
+        self.bc = '#bdbdbd'
+        self.bg = '#ffffff'
+        self.edge_color = None
+        self.math_fs = 15
+        self.fs = 13
+        self.sfs = 8
+        self.colored_add_width = 0.2
+        self.disptex = {
+            'id': r'\mathrm{I}',
+            'u0': 'U_0',
+            'u1': r'\mathrm{P}',
+            'u2': r'\mathrm{U}_2',
+            'u3': r'\mathrm{U}_3',
+            'x': 'X',
+            'y': 'Y',
+            'z': 'Z',
+            'h': 'H',
+            's': 'S',
+            'sdg': 'S^\\dagger',
+            't': 'T',
+            'tdg': 'T^\\dagger',
+            'r': 'R',
+            'rx': 'R_X',
+            'ry': 'R_Y',
+            'rz': 'R_Z',
+            'reset': '\\left|0\\right\\rangle'
+        }
+        self.dispcol = {
+            'u0': basis_color,
+            'u1': basis_color,
+            'u2': basis_color,
+            'u3': basis_color,
+            'id': iden_color,
+            'x': pauli_color,
+            'y': pauli_color,
+            'z': pauli_color,
+            'h': clifford_color,
+            'cx': clifford_color,
+            'cy': clifford_color,
+            'cz': clifford_color,
+            'swap': clifford_color,
+            's': clifford_color,
+            'sdg': clifford_color,
+            'dcx': clifford_color,
+            'iswap': clifford_color,
+            't': other_color,
+            'tdg': other_color,
+            'r': other_color,
+            'rx': other_color,
+            'ry': other_color,
+            'rz': other_color,
+            'reset': non_gate_color,
+            'target': '#ffffff',
+            'multi': other_color,
+            'meas': non_gate_color
+        }
+        self.latexmode = False
+        self.bundle = True
+        self.index = False
+        self.figwidth = -1
+        self.dpi = 150
+        self.margin = [2.0, 0.1, 0.1, 0.3]
+        self.cline = 'doublet'
+
+    def set_style(self, style_dic):
+        dic = copy(style_dic)
+        self.tc = dic.pop('textcolor', self.tc)
+        self.sc = dic.pop('subtextcolor', self.sc)
+        self.lc = dic.pop('linecolor', self.lc)
+        self.cc = dic.pop('creglinecolor', self.cc)
+        self.gt = dic.pop('gatetextcolor', self.tc)
+        self.gc = dic.pop('gatefacecolor', self.gc)
+        self.bc = dic.pop('barrierfacecolor', self.bc)
+        self.bg = dic.pop('backgroundcolor', self.bg)
+        self.fs = dic.pop('fontsize', self.fs)
+        self.sfs = dic.pop('subfontsize', self.sfs)
+        self.disptex = dic.pop('displaytext', self.disptex)
+        self.dispcol = dic.pop('displaycolor', self.dispcol)
+        self.latexmode = dic.pop('latexdrawerstyle', self.latexmode)
+        self.bundle = dic.pop('cregbundle', self.bundle)
+        self.index = dic.pop('showindex', self.index)
+        self.figwidth = dic.pop('figwidth', self.figwidth)
+        self.dpi = dic.pop('dpi', self.dpi)
+        self.margin = dic.pop('margin', self.margin)
+        self.cline = dic.pop('creglinestyle', self.cline)
+
+        if dic:
+            warn('style option/s ({}) is/are not supported'.format(', '.join(dic.keys())),
+                 DeprecationWarning, 2)
+
+
 class DefaultStyle:
     """IBM Design Style colors
     """
@@ -31,7 +142,7 @@ class DefaultStyle:
         pauli_color = '#05BAB6'
         iden_color = '#05BAB6'
 
-        self.name = 'iqx'
+        self.name = 'legacy'
         self.tc = '#000000'
         self.sc = '#000000'
         self.lc = '#000000'
