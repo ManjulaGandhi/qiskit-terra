@@ -204,7 +204,6 @@ class MatplotlibDrawer:
                     _fc = self._style.gc
                 else:
                     _fc = self._style.dispcol['multi']
-                _ec = self._style.dispcol['multi']
             else:
                 _fc = self._style.gc
 
@@ -214,33 +213,37 @@ class MatplotlibDrawer:
             xy=(xpos - 0.5 * wid, ypos - .5 * HIG),
             width=wid, height=height,
             fc=_fc,
-            ec=self._style.dispcol['multi'],
+            ec=_fc,
+            # ec=self._style.dispcol['multi'],
             linewidth=1.5, zorder=PORDER_GATE)
         self.ax.add_patch(box)
         # Annotate inputs
+        textcol = self._style.textcol[_fc]
         for bit, y in enumerate([x[1] for x in xy]):
             self.ax.text(xpos - 0.45 * wid, y, str(bit), ha='left', va='center',
-                         fontsize=self._style.fs, color=self._style.gt,
+                         fontsize=self._style.fs, color=textcol,
                          clip_on=True, zorder=PORDER_TEXT)
 
         if text:
-
-            disp_text = text
+            if text in self._style.disptex:
+                disp_text = '${}$'.format(self._style.disptex[text])
+            else:
+                disp_text = text
             if subtext:
                 self.ax.text(xpos, ypos + 0.5 * height, disp_text, ha='center',
                              va='center', fontsize=self._style.fs,
-                             color=self._style.gt, clip_on=True,
+                             color=textcol, clip_on=True,
                              zorder=PORDER_TEXT)
                 self.ax.text(xpos, ypos + 0.3 * height, subtext, ha='center',
                              va='center', fontsize=self._style.sfs,
-                             color=self._style.sc, clip_on=True,
+                             color=textcol, clip_on=True,
                              zorder=PORDER_TEXT)
             else:
                 self.ax.text(xpos, ypos + .5 * (qubit_span - 1), disp_text,
                              ha='center',
                              va='center',
                              fontsize=self._style.fs,
-                             color=self._style.gt,
+                             color=textcol,
                              clip_on=True,
                              zorder=PORDER_TEXT,
                              wrap=True)
@@ -288,10 +291,10 @@ class MatplotlibDrawer:
                 font_size = self._style.math_fs
 
             else:
-                disp_color = self._style.gt
-                sub_color = self._style.sc
+                disp_color = self._style.textcol[_fc]
+                sub_color = self._style.textcol[_fc]
 
-            if text in self._style.dispcol:
+            if text in self._style.disptex:
                 disp_text = "${}$".format(self._style.disptex[text])
             else:
                 disp_text = text

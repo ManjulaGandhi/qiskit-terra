@@ -26,9 +26,17 @@ class IQXStyle:
         basis_color = '#D2A106'
         clifford_color = '#33B1FF'
         non_gate_color = '#000000'
-        other_color = '#9F1853'
-        pauli_color = '#002D9C'
-        iden_color = '#002D9C'
+        other_color = '#002D9C'
+        pauli_color = '#9F1853'
+        iden_color = '#9F1853'
+        self.textcol = {
+            basis_color: '#000000',
+            clifford_color: '#000000',
+            non_gate_color: '#ffffff',
+            other_color: '#ffffff',
+            pauli_color: '#ffffff',
+            iden_color: '#ffffff',
+        }
 
         self.name = 'iqx'
         self.tc = '#000000'
@@ -47,23 +55,32 @@ class IQXStyle:
         self.colored_add_width = 0.2
         self.disptex = {
             'id': r'\mathrm{I}',
-            'u0': 'U_0',
+            'u0': r'\mathrm{U}_0',
             'u1': r'\mathrm{P}',
             'u2': r'\mathrm{U}_2',
             'u3': r'\mathrm{U}_3',
-            'x': 'X',
-            'y': 'Y',
-            'z': 'Z',
-            'h': 'H',
-            's': 'S',
-            'sdg': 'S^\\dagger',
-            't': 'T',
-            'tdg': 'T^\\dagger',
-            'r': 'R',
-            'rx': 'R_X',
-            'ry': 'R_Y',
-            'rz': 'R_Z',
-            'reset': '\\left|0\\right\\rangle'
+            'x': r'\mathrm{X}',
+            'y': r'\mathrm{Y}',
+            'z': r'\mathrm{Z}',
+            'h': r'\mathrm{H}',
+            's': r'\mathrm{S}',
+            'iswap': r'\mathrm{iSwap}',
+            'dcx': r'\mathrm{DCX}',
+            'ms': r'\mathrm{GMS}',
+            'rccx': r'\mathrm{RCCX}',
+            'rcccx': r'\mathrm{RCCCX}',
+            'sdg': r'\mathrm{S}^\dagger',
+            't': r'\mathrm{T}',
+            'tdg': r'\mathrm{T}^\dagger',
+            'r': r'\mathrm{R}',
+            'rx': r'\mathrm{R}_\mathrm{X}',
+            'ry': r'\mathrm{R}_\mathrm{Y}',
+            'rz': r'\mathrm{R}_\mathrm{Z}',
+            'rxx': r'\mathrm{R}_\mathrm{XX}',
+            'ryy': r'\mathrm{R}_\mathrm{YY}',
+            'rzx': r'\mathrm{R}_\mathrm{ZX}',
+            'rzz': r'\mathrm{R}_\mathrm{ZZ}',
+            'reset': r'\left|0\right\rangle',
         }
         self.dispcol = {
             'u0': basis_color,
