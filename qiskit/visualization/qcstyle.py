@@ -34,15 +34,19 @@ class MatplotlibDrawerStyle:
             'multi': '#000000'
         })
 
+        default_edgecol = '#000000'
+        self.edgecol = defaultdict(lambda: default_edgecol)
+
         # set text color: dictionary with gatecolor: textcolor pairs
         default_textcol = '#000000'
         self.textcol = defaultdict(lambda: default_textcol)
+        # self.textcol['#ffffff'] = '#000000'  # reset: black gate color and white text
 
         # set the TeX that will be diplayed: dictionary with gatename: TeX pairs
         self.disptex = {
             'id': r'\mathrm{I}',
             'u0': r'\mathrm{U}_0',
-            'u1': r'\mathrm{P}',
+            'u1': r'\mathrm{U}_1',
             'u2': r'\mathrm{U}_2',
             'u3': r'\mathrm{U}_3',
             'x': r'\mathrm{X}',
@@ -164,12 +168,16 @@ class DefaultStyle(MatplotlibDrawerStyle):
             'meas': non_gate_color
         })
 
+        # no edge color
+        self.edgecol = defaultdict(lambda: None)
+
         self.textcol = {
             basis_color: '#000000',
             clifford_color: '#000000',
             non_gate_color: '#ffffff',
             other_color: '#ffffff',
-            pauli_color: '#ffffff'
+            pauli_color: '#ffffff',
+            '#ffffff': '#000000',
         }
 
 
@@ -209,6 +217,9 @@ class LegacyStyle(MatplotlibDrawerStyle):
             'target': '#ffffff',
             'meas': non_gate_color
         })
+
+        # edge color equals displaycolor
+        self.edgecol = self.dispcol
 
         # slanted math text
         self.disptex = {

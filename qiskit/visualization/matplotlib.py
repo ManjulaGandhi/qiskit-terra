@@ -196,51 +196,56 @@ class MatplotlibDrawer:
         else:
             wid = WID
 
+        # facecolor of the gate
         if fc:
             _fc = fc
         else:
-            if self._style.name != 'bw':
-                if self._style.gc != DefaultStyle().gc:
-                    _fc = self._style.gc
-                else:
-                    _fc = self._style.dispcol['multi']
-                _ec = self._style.dispcol['multi']
-            else:
-                _fc = self._style.gc
+            _fc = self._style.dispcol[text]
 
+        # edgecolor of the gate
+        _ec = self._style.edgecol[text]
+
+        # draw the box
         qubit_span = abs(ypos) - abs(ypos_max) + 1
         height = HIG + (qubit_span - 1)
         box = patches.Rectangle(
             xy=(xpos - 0.5 * wid, ypos - .5 * HIG),
             width=wid, height=height,
             fc=_fc,
-            ec=self._style.dispcol['multi'],
+            ec=_ec,
             linewidth=1.5, zorder=PORDER_GATE)
         self.ax.add_patch(box)
+
+        # textcolor (is based on the facecolor of the gate)
+        _gt = self._style.textcol[_fc]  # main text
+        _sc = self._style.textcol[_fc]  # sub text
+
         # Annotate inputs
         for bit, y in enumerate([x[1] for x in xy]):
             self.ax.text(xpos - 0.45 * wid, y, str(bit), ha='left', va='center',
-                         fontsize=self._style.fs, color=self._style.gt,
+                         fontsize=self._style.fs, color=_gt,
                          clip_on=True, zorder=PORDER_TEXT)
 
         if text:
-
-            disp_text = text
+            if text in self._style.disptex.keys():
+                disp_text = '${}$'.format(self._style.disptex[text])
+            else:
+                disp_text = text
             if subtext:
                 self.ax.text(xpos, ypos + 0.5 * height, disp_text, ha='center',
                              va='center', fontsize=self._style.fs,
-                             color=self._style.gt, clip_on=True,
+                             color=_gt, clip_on=True,
                              zorder=PORDER_TEXT)
                 self.ax.text(xpos, ypos + 0.3 * height, subtext, ha='center',
                              va='center', fontsize=self._style.sfs,
-                             color=self._style.sc, clip_on=True,
+                             color=_sc, clip_on=True,
                              zorder=PORDER_TEXT)
             else:
                 self.ax.text(xpos, ypos + .5 * (qubit_span - 1), disp_text,
                              ha='center',
                              va='center',
                              fontsize=self._style.fs,
-                             color=self._style.gt,
+                             color=_gt,
                              clip_on=True,
                              zorder=PORDER_TEXT,
                              wrap=True)
@@ -266,48 +271,44 @@ class MatplotlibDrawer:
             wid = WID
         if fc:
             _fc = fc
-        elif self._style.gc != DefaultStyle().gc:
-            _fc = self._style.gc
-        elif text and text in self._style.dispcol:
-            _fc = self._style.dispcol[text]
         else:
-            _fc = self._style.gc
+            _fc = self._style.dispcol[text]
+
+        _ec = self._style.edgecol[text]
 
         box = patches.Rectangle(
             xy=(xpos - 0.5 * wid, ypos - 0.5 * HIG), width=wid, height=HIG,
-            fc=_fc, ec=self._style.edge_color, linewidth=1.5, zorder=PORDER_GATE)
+            fc=_fc, ec=_ec, linewidth=1.5, zorder=PORDER_GATE)
         self.ax.add_patch(box)
+
+        # textcolor (is based on the facecolor of the gate)
+        _gt = self._style.textcol[_fc]  # main text
+        _sc = self._style.textcol[_fc]  # sub text
 
         if text:
             font_size = self._style.fs
             sub_font_size = self._style.sfs
             # check if gate is not unitary
             if text in ['reset']:
-                disp_color = self._style.not_gate_lc
-                sub_color = self._style.not_gate_lc
                 font_size = self._style.math_fs
 
-            else:
-                disp_color = self._style.gt
-                sub_color = self._style.sc
-
-            if text in self._style.dispcol:
+            if text in self._style.disptex:
                 disp_text = "${}$".format(self._style.disptex[text])
             else:
                 disp_text = text
             if subtext:
                 self.ax.text(xpos, ypos + 0.15 * HIG, disp_text, ha='center',
                              va='center', fontsize=font_size,
-                             color=disp_color, clip_on=True,
+                             color=_gt, clip_on=True,
                              zorder=PORDER_TEXT)
                 self.ax.text(xpos, ypos - 0.3 * HIG, subtext, ha='center',
                              va='center', fontsize=sub_font_size,
-                             color=sub_color, clip_on=True,
+                             color=_sc, clip_on=True,
                              zorder=PORDER_TEXT)
             else:
                 self.ax.text(xpos, ypos, disp_text, ha='center', va='center',
                              fontsize=font_size,
-                             color=disp_color,
+                             color=_sc,
                              clip_on=True,
                              zorder=PORDER_TEXT)
 
@@ -843,6 +844,7 @@ class MatplotlibDrawer:
                     self._subtext(creg_b, hex(val))
                     self._line(qreg_t, creg_b, lc=self._style.cc,
                                ls=self._style.cline)
+
                 #
                 # draw special gates
                 #
@@ -885,12 +887,12 @@ class MatplotlibDrawer:
                         if param:
                             self._gate(q_xy[num_ctrl_qubits], wide=_iswide,
                                        text=disp,
-                                       fc=self._style.dispcol['multi'],
+                                       #    fc=self._style.dispcol['multi'],
                                        subtext='{}'.format(param))
                         else:
-                            fcx = op.name if op.name in self._style.dispcol else 'multi'
+                            # fcx = op.name if op.name in self._style.dispcol else 'multi'
                             self._gate(q_xy[num_ctrl_qubits], wide=_iswide, text=disp,
-                                       fc=self._style.dispcol[fcx])
+                                       fc=self._style.dispcol[op.name])
                     else:
                         self._custom_multiqubit_gate(
                             q_xy[num_ctrl_qubits:], wide=_iswide, fc=self._style.dispcol['multi'],
@@ -1002,12 +1004,6 @@ class MatplotlibDrawer:
                         self._swap(q_xy[1], self._style.dispcol['swap'])
                         # add qubit-qubit wiring
                         self._line(qreg_b, qreg_t, lc=self._style.dispcol['swap'])
-
-                    # dcx and iswap gate
-                    elif op.name in ['dcx', 'iswap']:
-                        self._custom_multiqubit_gate(q_xy, c_xy, wide=_iswide,
-                                                     fc=self._style.dispcol[op.name],
-                                                     text=op.op.label or op.name)
 
                     # Custom gate
                     else:
