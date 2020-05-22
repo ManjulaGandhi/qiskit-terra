@@ -36,9 +36,10 @@ except ImportError:
 
 from qiskit.circuit import ControlledGate
 from qiskit.visualization import exceptions
-from qiskit.visualization.qcstyle import DefaultStyle, BWStyle
 from qiskit import user_config
 from qiskit.circuit.tools.pi_check import pi_check
+
+import qiskit.visualization.qcstyle as qcstyles
 
 logger = logging.getLogger(__name__)
 
@@ -128,13 +129,22 @@ class MatplotlibDrawer:
         if config and (style is None):
             config_style = config.get('circuit_mpl_style', 'default')
             if config_style == 'default':
-                self._style = DefaultStyle()
+                self._style = qcstyles.DefaultStyle()
             elif config_style == 'bw':
-                self._style = BWStyle()
+                self._style = qcstyles.BWStyle()
+        elif isinstance(style, str):
+            # iterate over available styles and try to match the string to the name
+            for name, cls in qcstyles.__dict__.items():
+                if isinstance(cls, type):  # get class types
+                    if issubclass(cls, qcstyles.MatplotlibDrawerStyle):  # check its a style class
+                        if style == cls.name:  # if correct name, set the class
+                            self._style = cls()
+                            style = None  # reset style to not load a JSON
+                            break
         elif style is False:
-            self._style = BWStyle()
+            self._style = qcstyles.BWStyle()
         else:
-            self._style = DefaultStyle()
+            self._style = qcstyles.DefaultStyle()
 
         self.plot_barriers = plot_barriers
         self.reverse_bits = reverse_bits
@@ -412,7 +422,7 @@ class MatplotlibDrawer:
         self.ax.add_patch(box)
 
     def _ctrl_qubit(self, xy, fc=None, ec=None):
-        if self._style.gc != DefaultStyle().gc:
+        if self._style.gc != qcstyles.DefaultStyle().gc:
             fc = self._style.gc
             ec = self._style.gc
         if fc is None:
@@ -436,7 +446,7 @@ class MatplotlibDrawer:
 
     def _tgt_qubit(self, xy, fc=None, ec=None, ac=None,
                    add_width=None):
-        if self._style.gc != DefaultStyle().gc:
+        if self._style.gc != qcstyles.DefaultStyle().gc:
             fc = self._style.gc
             ec = self._style.gc
         if fc is None:

@@ -22,9 +22,9 @@ from warnings import warn
 class MatplotlibDrawerStyle:
     """Base class for a Matplotlib drawer style."""
 
-    def __init__(self):
-        self.name = 'basestyle'
+    name = 'bw'
 
+    def __init__(self):
         # set gate colors: dictionary with gatename: color pairs
         default_dispcol = '#ffffff'
         self.dispcol = defaultdict(lambda: default_dispcol)
@@ -125,18 +125,16 @@ class MatplotlibDrawerStyle:
 
 
 class BWStyle(MatplotlibDrawerStyle):
-    def __init__(self):
-        super().__init__()
-        self.name = 'bw'
+    pass
 
 
 class DefaultStyle(MatplotlibDrawerStyle):
     """IBM IQX Design Style colors."""
 
+    name = 'iqx'
+
     def __init__(self):
         super().__init__()
-
-        self.name = 'iqx'
 
         # Set colors
         basis_color = '#D2A106'
@@ -184,9 +182,10 @@ class DefaultStyle(MatplotlibDrawerStyle):
 class LegacyStyle(MatplotlibDrawerStyle):
     """The old IBM Design Style colors."""
 
+    name = 'legacy'
+
     def __init__(self):
         super().__init__()
-        self.name = 'legacy_iqx'
 
         # Set colors
         basis_color = '#FA74A6'
