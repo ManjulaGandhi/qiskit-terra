@@ -27,7 +27,7 @@ class MatplotlibDrawerStyle:
 
         # set gate colors: dictionary with gatename: color pairs
         default_dispcol = '#ffffff'
-        self.dispcol = defaultdict(default_dispcol)
+        self.dispcol = defaultdict(lambda: default_dispcol)
         self.dispcol.update({
             'cx': '#000000',
             'swap': '#000000',
@@ -36,28 +36,37 @@ class MatplotlibDrawerStyle:
 
         # set text color: dictionary with gatecolor: textcolor pairs
         default_textcol = '#000000'
-        self.textcol = defaultdict(default_textcol)
+        self.textcol = defaultdict(lambda: default_textcol)
 
         # set the TeX that will be diplayed: dictionary with gatename: TeX pairs
         self.disptex = {
-            'id': 'I',
-            'u0': 'U_0',
-            'u1': 'U_1',
-            'u2': 'U_2',
-            'u3': 'U_3',
-            'x': 'X',
-            'y': 'Y',
-            'z': 'Z',
-            'h': 'H',
-            's': 'S',
-            'sdg': 'S^\\dagger',
-            't': 'T',
-            'tdg': 'T^\\dagger',
-            'r': 'R',
-            'rx': 'R_x',
-            'ry': 'R_y',
-            'rz': 'R_z',
-            'reset': '\\left|0\\right\\rangle'
+            'id': r'\mathrm{I}',
+            'u0': r'\mathrm{U}_0',
+            'u1': r'\mathrm{P}',
+            'u2': r'\mathrm{U}_2',
+            'u3': r'\mathrm{U}_3',
+            'x': r'\mathrm{X}',
+            'y': r'\mathrm{Y}',
+            'z': r'\mathrm{Z}',
+            'h': r'\mathrm{H}',
+            's': r'\mathrm{S}',
+            'iswap': r'\mathrm{iSwap}',
+            'dcx': r'\mathrm{DCX}',
+            'ms': r'\mathrm{GMS}',
+            'rccx': r'\mathrm{RCCX}',
+            'rcccx': r'\mathrm{RCCCX}',
+            'sdg': r'\mathrm{S}^\dagger',
+            't': r'\mathrm{T}',
+            'tdg': r'\mathrm{T}^\dagger',
+            'r': r'\mathrm{R}',
+            'rx': r'\mathrm{R}_\mathrm{X}',
+            'ry': r'\mathrm{R}_\mathrm{Y}',
+            'rz': r'\mathrm{R}_\mathrm{Z}',
+            'rxx': r'\mathrm{R}_\mathrm{XX}',
+            'ryy': r'\mathrm{R}_\mathrm{YY}',
+            'rzx': r'\mathrm{R}_\mathrm{ZX}',
+            'rzz': r'\mathrm{R}_\mathrm{ZZ}',
+            'reset': r'\left|0\right\rangle',
         }
 
         # other options for matplotlib
@@ -117,6 +126,53 @@ class BWStyle(MatplotlibDrawerStyle):
         self.name = 'bw'
 
 
+class DefaultStyle(MatplotlibDrawerStyle):
+    """IBM IQX Design Style colors."""
+
+    def __init__(self):
+        super().__init__()
+
+        self.name = 'iqx'
+
+        # Set colors
+        basis_color = '#D2A106'
+        clifford_color = '#33B1FF'
+        non_gate_color = '#000000'
+        other_color = '#002D9C'
+        pauli_color = '#9F1853'
+        self.dispcol = defaultdict(lambda: other_color)  # default color
+        self.dispcol.update({
+            'u0': basis_color,
+            'u1': basis_color,
+            'u2': basis_color,
+            'u3': basis_color,
+            'id': pauli_color,
+            'x': pauli_color,
+            'y': pauli_color,
+            'z': pauli_color,
+            'h': clifford_color,
+            'cx': clifford_color,
+            'cy': clifford_color,
+            'cz': clifford_color,
+            'swap': clifford_color,
+            's': clifford_color,
+            'sdg': clifford_color,
+            'dcx': clifford_color,
+            'iswap': clifford_color,
+            'reset': non_gate_color,
+            'target': '#ffffff',
+            'meas': non_gate_color
+        })
+
+        self.textcol = {
+            basis_color: '#000000',
+            clifford_color: '#000000',
+            non_gate_color: '#ffffff',
+            other_color: '#ffffff',
+            pauli_color: '#ffffff'
+        }
+
+
 class LegacyStyle(MatplotlibDrawerStyle):
     """The old IBM Design Style colors."""
 
@@ -131,7 +187,7 @@ class LegacyStyle(MatplotlibDrawerStyle):
         other_color = '#BB8BFF'
         pauli_color = '#05BAB6'
 
-        self.dispcol = defaultdict(other_color)
+        self.dispcol = defaultdict(lambda: other_color)  # default color
         self.dispcol.update({
             'u0': basis_color,
             'u1': basis_color,
