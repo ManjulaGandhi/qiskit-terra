@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    Adds ``ParameterExpression.__pow__`` and ``ParameterExpression.__abs__`` 
+    such that operations as ``Parameter('x') ** 0.2`` and 
+    ``abs(Parameter('x'))`` are allowed. 

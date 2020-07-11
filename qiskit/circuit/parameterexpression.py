@@ -167,14 +167,14 @@ class ParameterExpression():
             raise CircuitError('Name conflict applying operation for parameters: '
                                '{}'.format(conflicting_names))
 
-    def _apply_operation(self, operation, other, reflected=False):
+    def _apply_operation(self, operation, other=None, reflected=False):
         """Base method implementing math operations between Parameters and
         either a constant or a second ParameterExpression.
 
         Args:
             operation (function): One of operator.{add,sub,mul,truediv}.
-            other (Parameter or numbers.Real): The second argument to be used
-               with self in operation.
+            other (Parameter or numbers.Real): Optional - The second argument to be used
+               with self in operation. For unary operations other is None.
             reflected (bool): Optional - The default ordering is
                 "self operator other". If reflected is True, this is switched
                 to "other operator self". For use in e.g. __radd__, ...
@@ -197,16 +197,19 @@ class ParameterExpression():
 
             parameter_symbols = {**self._parameter_symbols, **other._parameter_symbols}
             other_expr = other._symbol_expr
-        elif isinstance(other, numbers.Real) and numpy.isfinite(other):
+        elif isinstance(other, numbers.Real) and numpy.isfinite(other) or other is None:
             parameter_symbols = self._parameter_symbols.copy()
             other_expr = other
         else:
             return NotImplemented
 
-        if reflected:
-            expr = operation(other_expr, self_expr)
+        if other is None:
+            expr = operation(self_expr)
         else:
-            expr = operation(self_expr, other_expr)
+            if reflected:
+                expr = operation(other_expr, self_expr)
+            else:
+                expr = operation(self_expr, other_expr)
 
         return ParameterExpression(parameter_symbols, expr)
 
@@ -256,6 +259,16 @@ class ParameterExpression():
 
     def __deepcopy__(self, memo=None):
         return self
+
+    def __pow__(self, other):
+        # no complex parameters are supported at the moment, therefore
+        # the object raised to power may not be negative
+        def safe_pow(obj, power):
+            return operator.pow(operator.abs(obj), power)
+        return self._apply_operation(safe_pow, other)
+
+    def __abs__(self):
+        return self._apply_operation(operator.abs)
 
     def __eq__(self, other):
         from sympy import srepr

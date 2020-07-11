@@ -1194,6 +1194,29 @@ class TestParameterExpressions(QiskitTestCase):
         x = Parameter('x')
         self.assertEqual(x, x.conjugate())  # Parameters are real, therefore conjugate returns self
 
+    def test_abs(self):
+        """Test the abs method on a ParameterExpression."""
+        x = Parameter('x')
+        expr = abs(x)
+
+        self.assertEqual(expr.bind({x: -1}), x.bind({x: 1}))
+        self.assertEqual(expr.bind({x: 1}), x.bind({x: 1}))
+
+    def test_power(self):
+        """Test the power method on a ParameterExpression."""
+        x = Parameter('x')
+        expr = (2 * x) ** 0.31
+
+        with self.subTest('positive x'):
+            bound_value = expr.bind({x: 1.5})._symbol_expr
+            self.assertAlmostEqual(bound_value, 3 ** 0.31)
+
+        with self.subTest('negative x'):
+            # no negative numbers may be raised to a power as complex values are currently
+            # not supported, so calling power(x) calls power(abs(x))
+            bound_value = expr.bind({x: -1.5})._symbol_expr
+            self.assertAlmostEqual(bound_value, 3 ** 0.31)
+
 
 class TestParameterEquality(QiskitTestCase):
     """Test equality of Parameters and ParameterExpressions."""
