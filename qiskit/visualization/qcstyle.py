@@ -27,6 +27,136 @@ class IQXStyle:
         phase = '#33B1FF'
         nonunitary = '#A8A8A8'
         hadamard = '#FA4D56'
+        # quantum = '#9F1853'
+        quantum = '#8A3FFC'
+        other = '#8A3FFC'
+
+        self.textcol = {
+            classic: '#ffffff',
+            phase: '#000000',
+            nonunitary: '#000000',
+            hadamard: '#000000',
+            quantum: '#ffffff',
+            other: '#ffffff',
+        }
+
+        self.name = 'quantumness'
+        self.tc = '#000000'
+        self.sc = '#000000'
+        self.lc = '#000000'
+        self.not_gate_lc = '#ffffff'
+        self.cc = '#778899'
+        self.gc = '#ffffff'
+        self.gt = '#ffffff'
+        self.bc = '#bdbdbd'
+        self.bg = '#ffffff'
+        self.edge_color = None
+        self.math_fs = 15
+        self.fs = 13
+        self.sfs = 8
+        self.colored_add_width = 0.2
+        self.disptex = {
+            'id': r'\mathrm{I}',
+            'u0': r'\mathrm{U}_0',
+            'u1': r'\mathrm{P}',
+            'u2': r'\mathrm{U}_2',
+            'u3': r'\mathrm{U}_3',
+            'x': r'\mathrm{X}',
+            'y': r'\mathrm{Y}',
+            'z': r'\mathrm{Z}',
+            'h': r'\mathrm{H}',
+            's': r'\mathrm{S}',
+            'iswap': r'\mathrm{iSwap}',
+            'dcx': r'\mathrm{DCX}',
+            'ms': r'\mathrm{GMS}',
+            'rccx': r'\mathrm{RCCX}',
+            'rcccx': r'\mathrm{RCCCX}',
+            'sdg': r'\mathrm{S}^\dagger',
+            't': r'\mathrm{T}',
+            'tdg': r'\mathrm{T}^\dagger',
+            'r': r'\mathrm{R}',
+            'rx': r'\mathrm{R}_\mathrm{X}',
+            'ry': r'\mathrm{R}_\mathrm{Y}',
+            'rz': r'\mathrm{R}_\mathrm{Z}',
+            'rxx': r'\mathrm{R}_\mathrm{XX}',
+            'ryy': r'\mathrm{R}_\mathrm{YY}',
+            'rzx': r'\mathrm{R}_\mathrm{ZX}',
+            'rzz': r'\mathrm{R}_\mathrm{ZZ}',
+            'reset': r'\left|0\right\rangle',
+        }
+        self.dispcol = {
+            'u0': quantum,
+            'u1': phase,
+            'u2': other,
+            'u3': quantum,
+            'id': classic,
+            'x': classic,
+            'y': other,
+            'z': phase,
+            'h': hadamard,
+            'cx': classic,
+            'cy': other,
+            'cz': other,
+            'swap': classic,
+            's': phase,
+            'sdg': phase,
+            'dcx': classic,
+            'iswap': other,
+            't': phase,
+            'tdg': phase,
+            'r': quantum,
+            'rx': quantum,
+            'ry': quantum,
+            'rz': quantum,
+            'reset': nonunitary,
+            'target': '#ffffff',
+            'multi': other,
+            'meas': nonunitary
+        }
+        self.latexmode = False
+        self.bundle = True
+        self.index = False
+        self.figwidth = -1
+        self.dpi = 150
+        self.margin = [2.0, 0.1, 0.1, 0.3]
+        self.cline = 'doublet'
+
+    def set_style(self, style_dic):
+        dic = copy(style_dic)
+        self.tc = dic.pop('textcolor', self.tc)
+        self.sc = dic.pop('subtextcolor', self.sc)
+        self.lc = dic.pop('linecolor', self.lc)
+        self.cc = dic.pop('creglinecolor', self.cc)
+        self.gt = dic.pop('gatetextcolor', self.tc)
+        self.gc = dic.pop('gatefacecolor', self.gc)
+        self.bc = dic.pop('barrierfacecolor', self.bc)
+        self.bg = dic.pop('backgroundcolor', self.bg)
+        self.fs = dic.pop('fontsize', self.fs)
+        self.sfs = dic.pop('subfontsize', self.sfs)
+        self.disptex = dic.pop('displaytext', self.disptex)
+        self.dispcol = dic.pop('displaycolor', self.dispcol)
+        self.latexmode = dic.pop('latexdrawerstyle', self.latexmode)
+        self.bundle = dic.pop('cregbundle', self.bundle)
+        self.index = dic.pop('showindex', self.index)
+        self.figwidth = dic.pop('figwidth', self.figwidth)
+        self.dpi = dic.pop('dpi', self.dpi)
+        self.margin = dic.pop('margin', self.margin)
+        self.cline = dic.pop('creglinestyle', self.cline)
+
+        if dic:
+            warn('style option/s ({}) is/are not supported'.format(', '.join(dic.keys())),
+                 DeprecationWarning, 2)
+
+
+class _IQXStyle:
+    """IBM IQX Design Style colors."""
+
+    def __init__(self):
+        # Set colors
+        classic = '#002D9C'
+        phase = '#33B1FF'
+        nonunitary = '#A8A8A8'
+        hadamard = '#FA4D56'
         quantum = '#9F1853'
 
         self.textcol = {
