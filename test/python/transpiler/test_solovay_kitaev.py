@@ -14,9 +14,9 @@
 
 import unittest
 import math
+import itertools
 import numpy as np
 import scipy
-import itertools
 from ddt import ddt, data, unpack
 
 from hypothesis import given
