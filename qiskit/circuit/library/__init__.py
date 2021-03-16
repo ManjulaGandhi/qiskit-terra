@@ -142,6 +142,7 @@ Adders
 .. autosummary::
    :toctree: ../stubs/
 
+   ClassicalAdd
    WeightedAdder
 
 Comparators
@@ -311,6 +312,7 @@ from .arithmetic import (
     WeightedAdder,
     QuadraticForm,
     LinearAmplitudeFunction,
+    ClassicalAdd
 )
 from .n_local import (
     NLocal,
