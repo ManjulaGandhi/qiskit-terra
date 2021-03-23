@@ -102,7 +102,7 @@ from .exceptions import (ClassicalFunctionParseError, ClassicalFunctionCompilerE
 def classical_function(func):
     """
     Parses and type checks the callable ``func`` to compile it into an ``ClassicalFunction``
-    that can be synthesised into a ``QuantumCircuit``.
+    that can be synthesized into a ``QuantumCircuit``.
 
     Args:
         func (callable): A callable (with type hints) to compile into an ``ClassicalFunction``.
@@ -112,6 +112,7 @@ def classical_function(func):
         method).
     """
     import inspect
+    from textwrap import dedent
 
-    source = inspect.getsource(func).strip()
+    source = dedent(inspect.getsource(func))
     return ClassicalFunction(source, name=func.__name__)
