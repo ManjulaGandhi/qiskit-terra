@@ -60,8 +60,9 @@ class TestAdder(QiskitTestCase):
         np.testing.assert_array_almost_equal(expectations, probabilities)
 
     @data(
-        (3, ClassicalAdd, True),
-        #(5, ClassicalAdd, True)
+        (1, ClassicalAdd, True),
+        (2, ClassicalAdd, True),
+        (5, ClassicalAdd, True)
         # other adders to be added here
     )
     @unpack

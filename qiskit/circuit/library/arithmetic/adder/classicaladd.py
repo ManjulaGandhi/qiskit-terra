@@ -12,7 +12,7 @@
 
 """Module-level docstring describing what the file content is."""
 
-from qiskit.circuit import QuantumCircuit, QuantumRegister
+from qiskit.circuit import QuantumCircuit, QuantumRegister, AncillaRegister
 
 
 class ClassicalAdd(QuantumCircuit):
@@ -35,11 +35,11 @@ class ClassicalAdd(QuantumCircuit):
         # define the registers
         qr_a = QuantumRegister(num_state_qubits, name='a')
         qr_b = QuantumRegister(num_state_qubits, name='b')
-        qr_cin = QuantumRegister(num_state_qubits, name='cin')
+        qr_cin = AncillaRegister(num_state_qubits, name='cin')
         qr_cout = QuantumRegister(1, name='cout')
 
         # initialize the circuit
-        super().__init__(qr_a, qr_b, qr_cin, qr_cout, name=name)
+        super().__init__(qr_a, qr_b, qr_cout, qr_cin, name=name)
 
         qc_carry = QuantumCircuit(4, name='Carry')
         qc_carry.ccx(1, 2, 3)
