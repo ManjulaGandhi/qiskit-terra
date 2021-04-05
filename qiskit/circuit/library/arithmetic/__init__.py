@@ -21,4 +21,5 @@ from .polynomial_pauli_rotations import PolynomialPauliRotations
 from .weighted_adder import WeightedAdder
 from .quadratic_form import QuadraticForm
 from .linear_amplitude_function import LinearAmplitudeFunction
-from .adder import ClassicalAdd
+from .adder import ClassicalAdder
+
