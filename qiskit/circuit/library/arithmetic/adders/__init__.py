@@ -1,6 +1,6 @@
 # This code is part of Qiskit.
 #
-# (C) Copyright IBM 2017, 2018.
+# (C) Copyright IBM 2017, 2021.
 #
 # This code is licensed under the Apache License, Version 2.0. You may
 # obtain a copy of this license in the LICENSE.txt file in the root directory
@@ -10,11 +10,8 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-"""Qiskit visualization library."""
+"""The adder circuit library."""
 
-from .iplot_blochsphere import iplot_bloch_multivector
-from .iplot_cities import iplot_state_city
-from .iplot_qsphere import iplot_state_qsphere
-from .iplot_hinton import iplot_state_hinton
-from .iplot_histogram import iplot_histogram
-from .iplot_paulivec import iplot_state_paulivec
+from .ripple_carry_adder import RippleCarryAdder
+from .qft_adder import QFTAdder
+from .classicaladder import ClassicalAdder
