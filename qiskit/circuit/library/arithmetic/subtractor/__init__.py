@@ -12,5 +12,5 @@
 
 """The Subtractor circuit library."""
 
-from .twos_complement_subtractor import Subtractor
 from .twos_complement import TwosComplement
+from .twos_complement_subtractor import Subtractor
