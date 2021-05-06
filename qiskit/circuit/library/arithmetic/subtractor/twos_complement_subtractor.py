@@ -14,7 +14,7 @@
 from qiskit.circuit import QuantumCircuit, QuantumRegister, AncillaRegister
 #from qiskit.circuit.library.arithmetic.adders.adder import Adder
 from qiskit.circuit.library.arithmetic.adders import RippleCarryAdder,QFTAdder,ClassicalAdder
-#from qiskit.circuit.library.arithmetic.subtractor import TwosComplement
+from qiskit.circuit.library.arithmetic.subtractor import TwosComplement
 class Subtractor(QuantumCircuit):
     r"""A circuit that uses Two's Complement Subtraction to perform in-place subtraction on two qubit registers.
 
@@ -60,12 +60,13 @@ class Subtractor(QuantumCircuit):
     """
 
     #def __init__(self, num_state_qubits: int, adder: Optional[adder] = None):
-    def __init__(self, num_state_qubits: int, adder: str = 'QFTAdder'):
+    def __init__(self, num_state_qubits: int, adder=None):
         if adder is None:
             adder = RippleCarryAdder(num_state_qubits)
+        twos_complement = TwosComplement(num_state_qubits)
         # get the number of qubits needed
         num_qubits = adder.num_qubits
-        num_helper_qubits = adder.num_ancillas
+        num_helper_qubits = max(adder.num_ancillas,twos_complement.num_ancillas)
         num_carry_qubits = num_qubits - 2 * num_state_qubits - num_helper_qubits
         # construct the registers
         qr_a = QuantumRegister(num_state_qubits, 'a')  # input a
@@ -78,11 +79,10 @@ class Subtractor(QuantumCircuit):
             self.add_register(qr_c)
         # adder helper qubits if required
         if num_helper_qubits > 0:
-            qr_h = AncillaRegister(num_helper_qubits)  # helper/ancilla qubits
+            qr_h=AncillaRegister(num_helper_qubits)
             self.add_register(qr_h)
         
-        twos_complement = QuantumCircuit(qr_b, name='TwosComplement')
-        self.append(twos_complement, qr_b)
+        self.compose(twos_complement, qubits=qr_b[:]+qr_h[:twos_complement.num_ancillas],inplace=True)
         # adder
         self.compose(adder, inplace=True)
 

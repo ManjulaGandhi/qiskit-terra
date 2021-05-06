@@ -23,40 +23,40 @@ class TwosComplement(QuantumCircuit):
     register is as follows:
 
     .. parsed-literal::
-    
-                    ░ ┌───┐ ░                      ░
-            cin_0: ─░─┤ X ├─░────────■────■────────░─
-                    ░ └───┘ ░ ┌───┐  │  ┌─┴─┐      ░
-        input_b_0: ─░───────░─┤ X ├──■──┤ X ├──────░─
-                    ░       ░ ├───┤  │  └───┘      ░
-        input_b_1: ─░───────░─┤ X ├──┼────■────■───░─
-                    ░       ░ ├───┤  │    │    │   ░
-        input_b_2: ─░───────░─┤ X ├──┼────┼────┼───░─
-                    ░       ░ └───┘┌─┴─┐  │  ┌─┴─┐ ░
-           cout_0: ─░───────░──────┤ X ├──■──┤ X ├─░─
-                    ░       ░      └───┘┌─┴─┐└───┘ ░
-           cout_1: ─░───────░───────────┤ X ├──────░─
-                    ░       ░           └───┘      ░
-           cout_2: ─░───────░──────────────────────░─
-                    ░       ░                      ░
+                   ┌───┐ ░       ░ ┌───┐┌───────────┐
+        input_b_0: ┤ X ├─░───────░─┤ X ├┤3          ├─────
+                   ├───┤ ░       ░ ├───┤│           │
+        input_b_1: ┤ X ├─░───────░─┤ X ├┤4          ├─────
+                   └───┘ ░       ░ ├───┤│           │
+        input_b_2: ──────░───────░─┤ X ├┤5          ├─────
+                         ░ ┌───┐ ░ └───┘│  QFTAdder │┌───┐
+            cin_0: ──────░─┤ X ├─░──────┤0          ├┤ X ├
+                         ░ └───┘ ░      │           │└───┘
+            cin_1: ──────░───────░──────┤1          ├─────
+                         ░       ░      │           │
+            cin_2: ──────░───────░──────┤2          ├─────
+                         ░       ░      └───────────┘
 
+  
 
    
     **Reference**
 
-    [1] Rahul Pratap Singh et al.,Quantum algorithm for sum of infinite series;
-    determining the value of pi, `<https://www.researchgate.net/publication/329629442>`_ 
+    [1] Thomas G.Draper, 2000. "Addition on a Quantum Computer"
+    `Journal https://arxiv.org/pdf/quant-ph/0008033.pdf`_
+
 
     """
 
     def __init__(self, 
                  num_state_qubits: int, 
-                 adder: str = 'QFTAdder',
+                 adder=None,
                  name: str = 'TwosComplement'
                  ) -> None:
         """
         Args:
             num_state_qubits: The size of the register.
+            adder: The adder used to add 1 to the input state. This must be a modular adder.
             name: The name of the circuit.
         Raises:
             ValueError: If ``num_state_qubits`` is lower than 1.
@@ -65,7 +65,7 @@ class TwosComplement(QuantumCircuit):
         if num_state_qubits < 1:
             raise ValueError('The number of qubits must be at least 1.')
         if adder is None:
-            adder = QFTAdder(num_state_qubits)
+            adder = QFTAdder(num_state_qubits,modular=True)
         # get the number of qubits needed
         num_qubits = adder.num_qubits
         num_helper_qubits = adder.num_ancillas
@@ -101,7 +101,7 @@ class TwosComplement(QuantumCircuit):
         self.barrier()
         for j in range(num_state_qubits):
             self.x(b_qr[j])
-        self.append(QFTAdder(num_state_qubits,modular=True),one_qr[:]+b_qr[:])
+        self.append(adder,one_qr[:]+b_qr[:])
         self.x(one_qr[0])
         #self.ccx(qr_cin,qr_b[0],qr_cout[0])
         #self.cx(qr_cin,qr_b[0])

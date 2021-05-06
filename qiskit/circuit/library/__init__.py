@@ -314,7 +314,9 @@ from .arithmetic import (
     LinearAmplitudeFunction,
     ClassicalAdder,
     RippleCarryAdder,
-    QFTAdder
+    QFTAdder,
+    TwosComplement,
+    Subtractor
 )
 
 from .n_local import (
