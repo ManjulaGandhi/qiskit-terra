@@ -65,25 +65,24 @@ class TwosComplement(QuantumCircuit):
         if num_state_qubits < 1:
             raise ValueError('The number of qubits must be at least 1.')
         if adder is None:
-            adder = QFTAdder(num_state_qubits,modular=True)
+            adder = QFTAdder(num_state_qubits,modular=False)
         # get the number of qubits needed
         num_qubits = adder.num_qubits
         num_helper_qubits = adder.num_ancillas
-        num_carry_qubits = num_qubits - 2 * num_state_qubits - num_helper_qubits
-        # construct the registers
-        #qr_a = QuantumRegister(num_state_qubits, 'a')  # input a
-        #qr_b = QuantumRegister(num_state_qubits, 'b')  # input b
-        # initialize the circuit
-        #super().__init__(qr_a, qr_b)
-        # add carry qubits if required
+        
         # define the registers
         b_qr = QuantumRegister(num_state_qubits, name='input_b')
+        carry_qr=QuantumRegister(1, name='carry')
         one_qr = AncillaRegister(num_state_qubits, name='cin')
-        #qr_cin = QuantumRegister(1, name='cin')
-        #qr_cout = QuantumRegister(num_state_qubits, name='cout')
+        if num_helper_qubits != 0:
+            qr_h = AncillaRegister(num_helper_qubits)
 
+        
         # initialize the circuit
-        super().__init__(b_qr, one_qr, name=name)
+        if num_helper_qubits != 0 :
+            super().__init__(b_qr, carry_qr, one_qr,qr_h, name=name)
+        else:
+            super().__init__(b_qr, carry_qr, one_qr, name=name)
         #if num_carry_qubits > 0:
         #    qr_c = QuantumRegister(num_carry_qubits)
         #    self.add_register(qr_c)
@@ -101,18 +100,6 @@ class TwosComplement(QuantumCircuit):
         self.barrier()
         for j in range(num_state_qubits):
             self.x(b_qr[j])
-        self.append(adder,one_qr[:]+b_qr[:])
+        self.append(adder,one_qr[:]+b_qr[:]+carry_qr[:])
         self.x(one_qr[0])
-        #self.ccx(qr_cin,qr_b[0],qr_cout[0])
-        #self.cx(qr_cin,qr_b[0])
-
-        #for j in range(num_state_qubits-2):
-        #    self.ccx(qr_b[j+1],qr_cout[j],qr_cout[j+1])
-        #    self.cx(qr_b[j+1],qr_cout[j])
-        #self.barrier()
-        #flipping the left most bit
- #       self.cx(qr_cout[2],qr_cout[3])
- #       self.cx(qr_cout[3],qr_cout[2])
-        #qr_z = QuantumRegister(1, name='carry_out')
-        #qr_c = AncillaRegister(1, name='carry_in')
         

@@ -36,23 +36,24 @@ class Subtractor(QuantumCircuit):
 
     .. parsed-literal::
 
-                                 ┌──────┐┌──────┐                     ┌──────┐┌──────┐
-         a_0: ───────────────────┤0     ├┤2     ├─────────────────────┤2     ├┤0     ├
-                                 │      ││      │┌──────┐     ┌──────┐│      ││      │
-         a_1: ───────────────────┤      ├┤0     ├┤2     ├─────┤2     ├┤0     ├┤      ├
-                                 │      ││      ││      │     │      ││      ││      │
-         a_2: ───────────────────┤      ├┤  MAJ ├┤0     ├──■──┤0     ├┤  UMA ├┤      ├
-              ┌─────────────────┐│      ││      ││      │  │  │      ││      ││      │
-         b_0: ┤0                ├┤1     ├┤      ├┤  MAJ ├──┼──┤  UMA ├┤      ├┤1     ├
-              │                 ││  MAJ ││      ││      │  │  │      ││      ││  UMA │
-         b_1: ┤1 Twoscomplement ├┤      ├┤1     ├┤      ├──┼──┤      ├┤1     ├┤      ├
-              │                 ││      │└──────┘│      │  │  │      │└──────┘│      │
-         b_2: ┤2                ├┤      ├────────┤1     ├──┼──┤1     ├────────┤      ├
-              └─────────────────┘│      │        └──────┘┌─┴─┐└──────┘        │      │
-        q0_0: ───────────────────┤      ├────────────────┤ X ├────────────────┤      ├
-                                 │      │                └───┘                │      │
-        a0_0: ───────────────────┤2     ├─────────────────────────────────────┤2     ├
-                                 └──────┘                                     └──────┘
+         a_0: ──────────────────────────────────────■──────■────────■──────────────────────────────────────
+                                                    │      │        │
+         a_1: ──────────────────────────────────────┼──────┼────────┼────────■──────■──────────────────────
+               ░       ░ ┌───┐┌───────────┐┌──────┐ │P(π)  │        │        │      │              ┌──────┐
+         b_0: ─░───────░─┤ X ├┤2          ├┤0     ├─■──────┼────────┼────────┼──────┼──────────────┤0     ├
+               ░       ░ ├───┤│           ││      │        │P(π/2)  │        │P(π)  │              │      │
+         b_1: ─░───────░─┤ X ├┤3          ├┤1 qft ├────────■────────┼────────■──────┼──────────────┤1 qft ├
+               ░       ░ └───┘│           ││      │                 │P(π/4)         │P(π/2)        │      │
+   carry_b_0: ─░───────░──────┤4          ├┤2     ├─────────────────■───────────────■────────■─────┤2     ├
+               ░       ░      │  QFTAdder │└──────┘                                          │P(π) └──────┘
+   carry_a_0: ────────────────┤           ├──────────────────────────────────────────────────■─────────────
+               ░ ┌───┐ ░      │           │ ┌───┐
+        a0_0: ─░─┤ X ├─░──────┤0          ├─┤ X ├──────────────────────────────────────────────────────────
+               ░ └───┘ ░      │           │ └───┘
+        a0_1: ─░───────░──────┤1          ├────────────────────────────────────────────────────────────────
+               ░       ░      └───────────┘
+
+           
     **References**
     
     [1] Vedral et al., Quantum Networks for Elementary Arithmetic Operations, 1995.
@@ -60,31 +61,27 @@ class Subtractor(QuantumCircuit):
     """
 
     #def __init__(self, num_state_qubits: int, adder: Optional[adder] = None):
-    def __init__(self, num_state_qubits: int, adder=None):
+    def __init__(self, num_state_qubits: int, adder=None, name: str = 'Subtractor'):
         if adder is None:
-            adder = RippleCarryAdder(num_state_qubits)
+            adder = QFTAdder(num_state_qubits+1,modular=True)
+            ##adder = RippleCarryAdder(num_state_qubits+1,modular=True)
         twos_complement = TwosComplement(num_state_qubits)
         # get the number of qubits needed
         num_qubits = adder.num_qubits
         num_helper_qubits = max(adder.num_ancillas,twos_complement.num_ancillas)
-        num_carry_qubits = num_qubits - 2 * num_state_qubits - num_helper_qubits
+        
         # construct the registers
         qr_a = QuantumRegister(num_state_qubits, 'a')  # input a
         qr_b = QuantumRegister(num_state_qubits, 'b')  # input b
-        # initialize the circuit
-        super().__init__(qr_a, qr_b)
-        # add carry qubits if required
-        if num_carry_qubits > 0:
-            qr_c = QuantumRegister(num_carry_qubits)
-            self.add_register(qr_c)
-        # adder helper qubits if required
-        if num_helper_qubits > 0:
-            qr_h=AncillaRegister(num_helper_qubits)
-            self.add_register(qr_h)
+        carry_b=QuantumRegister(1,'carry_b')
+        carry_a=AncillaRegister(1,'carry_a')
+        qr_h=AncillaRegister(num_helper_qubits)
         
-        self.compose(twos_complement, qubits=qr_b[:]+qr_h[:twos_complement.num_ancillas],inplace=True)
+        super().__init__(qr_a,qr_b,carry_b,carry_a,qr_h, name=name)
+        
+        
+        self.compose(twos_complement, qubits=qr_b[:]+carry_b[:]+qr_h[:twos_complement.num_ancillas],inplace=True)
+        
         # adder
-        self.compose(adder, inplace=True)
-
-
-
+        self.compose(adder,qubits=qr_a[:]+carry_a[:]+qr_b[:]+carry_b[:]+qr_h[:adder.num_ancillas],inplace=True)
+        
