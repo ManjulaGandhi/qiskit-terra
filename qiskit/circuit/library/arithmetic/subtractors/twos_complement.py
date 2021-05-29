@@ -12,8 +12,8 @@
 
 """Compute Two's Complement of a given qubit."""
 
+from typing import Optional
 from qiskit.circuit import QuantumCircuit, QuantumRegister, AncillaRegister
-from qiskit.circuit.library.arithmetic import DraperQFTAdder
 
 
 class TwosComplement(QuantumCircuit):
@@ -41,9 +41,15 @@ class TwosComplement(QuantumCircuit):
     **Reference**
     [1] Thomas G.Draper, 2000. "Addition on a Quantum Computer"
     `Journal https://arxiv.org/pdf/quant-ph/0008033.pdf`_
+
     """
 
-    def __init__(self, num_state_qubits: int, adder=None, name: str = "TwosComplement") -> None:
+    def __init__(
+        self,
+        num_state_qubits: int,
+        adder: Optional[QuantumCircuit] = None,
+        name: str = "TwosComplement",
+    ) -> None:
         """
         Args:
             num_state_qubits: The size of the register.
@@ -55,33 +61,31 @@ class TwosComplement(QuantumCircuit):
 
         if num_state_qubits < 1:
             raise ValueError("The number of qubits must be at least 1.")
+
         if adder is None:
-            adder = DraperQFTAdder(num_state_qubits, modular=False)
+            from qiskit.circuit.library import DraperQFTAdder
+
+            adder = DraperQFTAdder(num_state_qubits, kind="half")
+        else:
+            _check_adder_is_compatible(num_state_qubits, adder)
+
         # get the number of qubits needed
-        num_qubits = adder.num_qubits
         num_helper_qubits = adder.num_ancillas
 
         # define the registers
         b_qr = QuantumRegister(num_state_qubits, name="input_b")
         carry_qr = QuantumRegister(1, name="carry")
-        one_qr = AncillaRegister(num_state_qubits, name="cin")
+        one_qr = AncillaRegister(num_state_qubits, name="help")
         if num_helper_qubits != 0:
             qr_h = AncillaRegister(num_helper_qubits)
+        else:
+            qr_h = []
 
         # initialize the circuit
         if num_helper_qubits != 0:
             super().__init__(b_qr, carry_qr, one_qr, qr_h, name=name)
         else:
             super().__init__(b_qr, carry_qr, one_qr, name=name)
-        # if num_carry_qubits > 0:
-        #    qr_c = QuantumRegister(num_carry_qubits)
-        #    self.add_register(qr_c)
-        # adder helper qubits if required
-        # if num_helper_qubits > 0:
-        #    qr_h = AncillaRegister(num_helper_qubits)  # helper/ancilla qubits
-        #    self.add_register(qr_h)
-
-        # Build a temporary subcircuit that obtains two's complement of b,
 
         # flippling circuit and adding 1
         self.barrier()
@@ -89,5 +93,14 @@ class TwosComplement(QuantumCircuit):
         self.barrier()
         for j in range(num_state_qubits):
             self.x(b_qr[j])
-        self.append(adder, one_qr[:] + b_qr[:] + carry_qr[:])
+        self.append(adder, one_qr[:] + b_qr[:] + carry_qr[:] + qr_h[:])
         self.x(one_qr[0])
+
+
+def _check_adder_is_compatible(num_state_qubits, adder):
+    target_num_state_qubits = 2 * num_state_qubits + 1  # inplace half adder
+    actual_num_state_qubits = adder.num_qubits - adder.num_ancillas
+    if target_num_state_qubits != actual_num_state_qubits:
+        raise ValueError("The number of state qubits (= all non-ancilla qubits) of the input "
+                         f"adder ({actual_num_state_qubits}) does not match the expected "
+                         f"number ({target_num_state_qubits}). Make sure to pass a half adder.")
