@@ -22,4 +22,5 @@ from .weighted_adder import WeightedAdder
 from .quadratic_form import QuadraticForm
 from .linear_amplitude_function import LinearAmplitudeFunction
 from .adders import VBERippleCarryAdder, CDKMRippleCarryAdder, DraperQFTAdder
+from .subtractors import TwosComplement, Subtractor
 from .piecewise_chebyshev import PiecewiseChebyshev
